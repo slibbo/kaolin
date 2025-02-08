@@ -89,6 +89,18 @@
     } \
   }()
 
+#define HIP_CHECK(expression)                    \
+  {                                              \
+      const hipError_t status = expression;      \
+      if(status != hipSuccess){                  \
+          std::cerr << "HIP error "              \
+                    << status << ": "            \
+                    << hipGetErrorString(status) \
+                    << " at " << __FILE__ << ":" \
+                    << __LINE__ << std::endl;    \
+      }                                          \
+  }
+
 #ifdef __CUDACC__
 #define _EXP(x) __expf(x) // faster exp
 #else

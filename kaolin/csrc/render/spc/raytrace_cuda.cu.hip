@@ -24,10 +24,10 @@
 #include <c10/cuda/CUDAGuard.h>
 #ifdef EXPERIMENTAL
     #include <ATen/native/cuda/KernelUtils.cuh>
-#else 
+#else
     #include <ATen/cuda/Atomic.cuh>
 #endif
-// TODO(ttakikawa): newer versions of PyTorch will migrate to <ATen/cuda/Atomics.cuh>. 
+// TODO(ttakikawa): newer versions of PyTorch will migrate to <ATen/cuda/Atomics.cuh>.
 // How do we manage these dependencies?
 
 #define HIPCUB_STDERR
@@ -35,6 +35,7 @@
 
 #include "../../spc_math.h"
 #include "../../spc_utils.cuh"
+#include "../../utils.h"
 #include "spc_render_utils.cuh"
 
 namespace kaolin {
@@ -65,9 +66,9 @@ __constant__ uint8_t VOXEL_ORDER[8][8] = {
 // This function will initialize the nuggets array with each ray pointing to the octree root
 __global__ void
 init_nuggets_cuda_kernel(
-    const uint num, 
+    const uint num,
     uint2* nuggets) {
-  
+
   uint tidx = blockDim.x * blockIdx.x + threadIdx.x;
 
   if (tidx < num) {
@@ -76,19 +77,19 @@ init_nuggets_cuda_kernel(
   }
 }
 
-// This function will iterate over the nuggets (ray intersection proposals) and determine if they 
+// This function will iterate over the nuggets (ray intersection proposals) and determine if they
 // result in an intersection. If they do, the info tensor is populated with the # of child nodes
 // as determined by the input octree.
 __global__ void
 decide_cuda_kernel(
-    const uint num, 
-    const point_data* __restrict__ points, 
-    const float3* __restrict__ ray_o, 
+    const uint num,
+    const point_data* __restrict__ points,
+    const float3* __restrict__ ray_o,
     const float3* __restrict__ ray_d,
-    const uint2* __restrict__ nuggets, 
-    uint* __restrict__ info, 
-    const uint8_t* __restrict__ octree, 
-    const uint32_t level, 
+    const uint2* __restrict__ nuggets,
+    uint* __restrict__ info,
+    const uint8_t* __restrict__ octree,
+    const uint32_t level,
     const uint32_t not_done) {
 
   uint tidx = blockDim.x * blockIdx.x + threadIdx.x;
@@ -101,8 +102,8 @@ decide_cuda_kernel(
     float3 d = ray_d[ridx];
 
     // Radius of voxel
-    float r = 1.0 / ((float)(0x1 << level)); 
-    
+    float r = 1.0 / ((float)(0x1 << level));
+
     // Transform to [-1, 1]
     const float3 vc = make_float3(
         fmaf(r, fmaf(2.0, p.x, 1.0), -1.0f),
@@ -133,14 +134,14 @@ decide_cuda_kernel(
 // Overloaded version of function above that returns depth of voxel/ ray entry points
 __global__ void
 decide_cuda_kernel(
-    const uint num, 
-    const point_data* __restrict__ points, 
-    const float3* __restrict__ ray_o, 
+    const uint num,
+    const point_data* __restrict__ points,
+    const float3* __restrict__ ray_o,
     const float3* __restrict__ ray_d,
-    const uint2* __restrict__ nuggets, 
+    const uint2* __restrict__ nuggets,
     float* depth,
-    uint* __restrict__ info, 
-    const uint8_t* __restrict__ octree, 
+    uint* __restrict__ info,
+    const uint8_t* __restrict__ octree,
     const uint32_t level) {
 
   uint tidx = blockDim.x * blockIdx.x + threadIdx.x;
@@ -153,8 +154,8 @@ decide_cuda_kernel(
     float3 d = ray_d[ridx];
 
     // Radius of voxel
-    float r = 1.0 / ((float)(0x1 << level)); 
-    
+    float r = 1.0 / ((float)(0x1 << level));
+
     // Transform to [-1, 1]
     const float3 vc = make_float3(
         fmaf(r, fmaf(2.0, p.x, 1.0), -1.0f),
@@ -179,14 +180,14 @@ decide_cuda_kernel(
 // Overloaded version of function above that returns depth of voxel/ ray entry and exit points
 __global__ void
 decide_cuda_kernel(
-    const uint num, 
-    const point_data* __restrict__ points, 
-    const float3* __restrict__ ray_o, 
+    const uint num,
+    const point_data* __restrict__ points,
+    const float3* __restrict__ ray_o,
     const float3* __restrict__ ray_d,
-    const uint2* __restrict__ nuggets, 
+    const uint2* __restrict__ nuggets,
     float2* __restrict__ depth,
-    uint* __restrict__ info, 
-    const uint8_t* __restrict__ octree, 
+    uint* __restrict__ info,
+    const uint8_t* __restrict__ octree,
     const uint32_t level) {
 
   uint tidx = blockDim.x * blockIdx.x + threadIdx.x;
@@ -200,7 +201,7 @@ decide_cuda_kernel(
 
     // Radius of voxel
     float r = 1.0 / ((float)(0x1 << level));
-    
+
     // Transform to [-1, 1]
     const float3 vc = make_float3(
         fmaf(r, fmaf(2.0, p.x, 1.0), -1.0f),
@@ -223,18 +224,18 @@ decide_cuda_kernel(
 }
 
 // This function will iterate over the nugget array, and for each nuggets stores the child indices of the
-// nuggets (as defined by the octree tensor) 
+// nuggets (as defined by the octree tensor)
 __global__ void
 subdivide_cuda_kernel(
-    const uint num, 
-    const uint2* __restrict__ nuggets_in, 
-    uint2* __restrict__ nuggets_out, 
+    const uint num,
+    const uint2* __restrict__ nuggets_in,
+    uint2* __restrict__ nuggets_out,
     const float3* __restrict__ ray_o,
-    const point_data* __restrict__ points, 
-    const uint8_t* __restrict__ octree, 
-    const uint* __restrict__ exclusive_sum, 
+    const point_data* __restrict__ points,
+    const uint8_t* __restrict__ octree,
+    const uint* __restrict__ exclusive_sum,
     const uint* __restrict__ info,
-    const uint* __restrict__ prefix_sum, 
+    const uint* __restrict__ prefix_sum,
     const uint32_t level) {
   uint tidx = blockDim.x * blockIdx.x + threadIdx.x;
 
@@ -273,8 +274,8 @@ subdivide_cuda_kernel(
 template<typename scalar_t>
 __global__ void
 mark_pack_boundaries_cuda_kernel(
-    const int64_t num, 
-    const scalar_t* __restrict__ pack_ids, 
+    const int64_t num,
+    const scalar_t* __restrict__ pack_ids,
     uint* __restrict__ boundaries) {
 
   uint tidx = blockDim.x * blockIdx.x + threadIdx.x;
@@ -292,15 +293,15 @@ mark_pack_boundaries_cuda_kernel(
 template<typename scalar_t>
 __global__ void
 compactify_cuda_kernel(
-    const uint num, 
-    const scalar_t* __restrict__ buffer_in, 
+    const uint num,
+    const scalar_t* __restrict__ buffer_in,
     scalar_t* __restrict__ buffer_out,
-    const uint* __restrict__ info, 
+    const uint* __restrict__ info,
     const uint* __restrict__ prefix_sum) {
 
   uint tidx = blockDim.x * blockIdx.x + threadIdx.x;
 
-  if (tidx < num && info[tidx]) { 
+  if (tidx < num && info[tidx]) {
     buffer_out[prefix_sum[tidx]] = buffer_in[tidx];
   }
 }
@@ -329,10 +330,10 @@ diff_cuda_kernel(
 template<typename scalar_t>
 __global__ void
 sum_reduce_cuda_kernel(
-    const int64_t num_feats, 
-    const int64_t feat_dim, 
-    const scalar_t* __restrict__ feats_in, 
-    scalar_t* __restrict__ feats_out, 
+    const int64_t num_feats,
+    const int64_t feat_dim,
+    const scalar_t* __restrict__ feats_in,
+    scalar_t* __restrict__ feats_out,
     const int32_t* __restrict__ inclusive_sum) {
 
   int tidx = blockDim.x * blockIdx.x + threadIdx.x;
@@ -341,29 +342,29 @@ sum_reduce_cuda_kernel(
       int idx = (inclusive_sum[tidx]-1) * feat_dim + i;
 #     ifdef EXPERIMENTAL
       int numel = num_feats*feat_dim;
-      at::native::fastAtomicAdd(feats_out, idx, numel, feats_in[tidx * feat_dim + i], true); 
+      at::native::fastAtomicAdd(feats_out, idx, numel, feats_in[tidx * feat_dim + i], true);
 #     else
-      gpuAtomicAdd(feats_out + idx, feats_in[tidx * feat_dim + i]); 
+      gpuAtomicAdd(feats_out + idx, feats_in[tidx * feat_dim + i]);
 #     endif
     }
   }
 }
 
-// This kernel is the same as sum_reduce but avoids atomic add by packing the ops. 
+// This kernel is the same as sum_reduce but avoids atomic add by packing the ops.
 // It however will cause thread divergence.
 template<typename scalar_t>
 __global__ void
 packed_sum_reduce_cuda_kernel(
     const int64_t num_packs,
-    const int64_t num_feats, 
-    const int64_t feat_dim, 
-    const scalar_t* __restrict__ feats_in, 
-    scalar_t* __restrict__ feats_out, 
+    const int64_t num_feats,
+    const int64_t feat_dim,
+    const scalar_t* __restrict__ feats_in,
+    scalar_t* __restrict__ feats_out,
     const int64_t* __restrict__ pack_indices) {
 
   uint tidx = blockDim.x * blockIdx.x + threadIdx.x;
   if (tidx < num_packs) {
-    int64_t upper_bound = (tidx == num_packs-1) ? num_feats*feat_dim : pack_indices[tidx+1];    
+    int64_t upper_bound = (tidx == num_packs-1) ? num_feats*feat_dim : pack_indices[tidx+1];
     for (int i=pack_indices[tidx]; i<upper_bound-1; ++i) {
       for (int j=0; j<feat_dim; ++j) {
         feats_out[i * feat_dim + j] += feats_in[i * feat_dim + j];
@@ -377,12 +378,12 @@ __global__ void
 cumprod_cuda_kernel(
     const int64_t num_packs,
     const int64_t num_feats,
-    const int64_t feat_dim, 
-    const scalar_t* __restrict__ feats_in, 
-    scalar_t* __restrict__ feats_out, 
+    const int64_t feat_dim,
+    const scalar_t* __restrict__ feats_in,
+    scalar_t* __restrict__ feats_out,
     int32_t* __restrict__ pack_indices,  // maps idx of pack -> beginning of global idx
     int32_t offset) {
-  
+
   uint tidx = blockDim.x * blockIdx.x + threadIdx.x;
   if (tidx < num_packs) {
     int upper_bound = (tidx == num_packs-1) ? num_feats : pack_indices[tidx+1];
@@ -396,8 +397,8 @@ cumprod_cuda_kernel(
       for (int j=0; j<feat_dim; ++j){
         feats_out[i * feat_dim + j] = feats_in[(i-offset) * feat_dim + j] * feats_out[(i-1) * feat_dim + j];
       }
-    }  
-  } 
+    }
+  }
 }
 
 template<typename scalar_t>
@@ -405,12 +406,12 @@ __global__ void
 cumprod_reverse_cuda_kernel(
     const int64_t num_packs,
     const int64_t num_feats,
-    const int64_t feat_dim, 
-    const scalar_t* __restrict__ feats_in, 
-    scalar_t* __restrict__ feats_out, 
+    const int64_t feat_dim,
+    const scalar_t* __restrict__ feats_in,
+    scalar_t* __restrict__ feats_out,
     int32_t* __restrict__ pack_indices,  // maps idx of pack -> beginning of global idx
     int32_t offset) {
-  
+
   uint tidx = blockDim.x * blockIdx.x + threadIdx.x;
   if (tidx < num_packs) {
     int upper_bound = (tidx == num_packs-1) ? num_feats : pack_indices[tidx+1];
@@ -424,8 +425,8 @@ cumprod_reverse_cuda_kernel(
       for (int j=0; j<feat_dim; ++j){
         feats_out[i * feat_dim + j] = feats_in[(i+offset) * feat_dim + j] * feats_out[(i+1) * feat_dim + j];
       }
-    }  
-  } 
+    }
+  }
 }
 
 template<typename scalar_t>
@@ -433,12 +434,12 @@ __global__ void
 cumsum_cuda_kernel(
     const int64_t num_packs,
     const int64_t num_feats,
-    const int64_t feat_dim, 
-    const scalar_t* __restrict__ feats_in, 
-    scalar_t* __restrict__ feats_out, 
+    const int64_t feat_dim,
+    const scalar_t* __restrict__ feats_in,
+    scalar_t* __restrict__ feats_out,
     int32_t* __restrict__ pack_indices,  // maps idx of pack -> beginning of global idx
     int32_t offset) {
-  
+
   uint tidx = blockDim.x * blockIdx.x + threadIdx.x;
   if (tidx < num_packs) {
     int upper_bound = (tidx == num_packs-1) ? num_feats : pack_indices[tidx+1];
@@ -452,8 +453,8 @@ cumsum_cuda_kernel(
       for (int j=0; j<feat_dim; ++j){
         feats_out[i * feat_dim + j] = feats_in[(i-offset) * feat_dim + j] + feats_out[(i-1) * feat_dim + j];
       }
-    }  
-  } 
+    }
+  }
 }
 
 template<typename scalar_t>
@@ -461,12 +462,12 @@ __global__ void
 cumsum_reverse_cuda_kernel(
     const int64_t num_packs,
     const int64_t num_feats,
-    const int64_t feat_dim, 
-    const scalar_t* __restrict__ feats_in, 
-    scalar_t* __restrict__ feats_out, 
+    const int64_t feat_dim,
+    const scalar_t* __restrict__ feats_in,
+    scalar_t* __restrict__ feats_out,
     int32_t* __restrict__ pack_indices,  // maps idx of pack -> beginning of global idx
     int32_t offset) {
-  
+
   uint tidx = blockDim.x * blockIdx.x + threadIdx.x;
   if (tidx < num_packs) {
     int upper_bound = (tidx == num_packs-1) ? num_feats : pack_indices[tidx+1];
@@ -480,8 +481,8 @@ cumsum_reverse_cuda_kernel(
       for (int j=0; j<feat_dim; ++j){
         feats_out[i * feat_dim + j] = feats_in[(i+offset) * feat_dim + j] + feats_out[(i+1) * feat_dim + j];
       }
-    }  
-  } 
+    }
+  }
 }
 
 std::vector<at::Tensor> raytrace_cuda_impl(
@@ -497,7 +498,7 @@ std::vector<at::Tensor> raytrace_cuda_impl(
     bool with_exit) {
 
   uint num = ray_o.size(0);
-  
+
   uint8_t* octree_ptr = octree.data_ptr<uint8_t>();
   point_data* points_ptr = reinterpret_cast<point_data*>(points.data_ptr<short>());
   uint*  exclusive_sum_ptr = reinterpret_cast<uint*>(exclusive_sum.data_ptr<int>());
@@ -528,26 +529,26 @@ std::vector<at::Tensor> raytrace_cuda_impl(
 
         if (with_exit) {
             decide_cuda_kernel<<<(num + RT_NUM_THREADS - 1) / RT_NUM_THREADS, RT_NUM_THREADS>>>(
-                num, points_ptr, ray_o_ptr, ray_d_ptr, reinterpret_cast<uint2*>(nuggets0.data_ptr<int>()), 
+                num, points_ptr, ray_o_ptr, ray_d_ptr, reinterpret_cast<uint2*>(nuggets0.data_ptr<int>()),
                 reinterpret_cast<float2*>(l == target_level ? depths0.data_ptr<float>() : 0),
                 info_ptr, octree_ptr, l);
         } else {
             decide_cuda_kernel<<<(num + RT_NUM_THREADS - 1) / RT_NUM_THREADS, RT_NUM_THREADS>>>(
-                num, points_ptr, ray_o_ptr, ray_d_ptr, reinterpret_cast<uint2*>(nuggets0.data_ptr<int>()), 
+                num, points_ptr, ray_o_ptr, ray_d_ptr, reinterpret_cast<uint2*>(nuggets0.data_ptr<int>()),
                 l == target_level ? depths0.data_ptr<float>() : 0, info_ptr, octree_ptr, l);
         }
     }
     else {
       decide_cuda_kernel<<<(num + RT_NUM_THREADS - 1) / RT_NUM_THREADS, RT_NUM_THREADS>>>(
-        num, points_ptr, ray_o_ptr, ray_d_ptr, reinterpret_cast<uint2*>(nuggets0.data_ptr<int>()), 
-        info_ptr, octree_ptr, l, target_level - l);   
+        num, points_ptr, ray_o_ptr, ray_d_ptr, reinterpret_cast<uint2*>(nuggets0.data_ptr<int>()),
+        info_ptr, octree_ptr, l, target_level - l);
     }
 
     at::Tensor prefix_sum = at::empty({num+1}, octree.options().dtype(at::kInt));
     uint*  prefix_sum_ptr = reinterpret_cast<uint*>(prefix_sum.data_ptr<int>());
 
     // set first element to zero
-    CubDebugExit(hipMemcpy(prefix_sum_ptr, &buffer, sizeof(uint), hipMemcpyHostToDevice));
+    HIP_CHECK(hipMemcpy(prefix_sum_ptr, &buffer, sizeof(uint), hipMemcpyHostToDevice));
 
     // set up memory for DeviceScan calls
     void* temp_storage_ptr = NULL;
@@ -556,10 +557,10 @@ std::vector<at::Tensor> raytrace_cuda_impl(
     at::Tensor temp_storage = at::empty({(int64_t)temp_storage_bytes}, octree.options());
     temp_storage_ptr = (void*)temp_storage.data_ptr<uint8_t>();
 
-    CubDebugExit(cub::DeviceScan::InclusiveSum(
+    HIP_CHECK(cub::DeviceScan::InclusiveSum(
         temp_storage_ptr, temp_storage_bytes, info_ptr,
         prefix_sum_ptr + 1, num)); //start sum on second element
-    hipMemcpy(&cnt, prefix_sum_ptr + num, sizeof(uint), hipMemcpyDeviceToHost);   
+    hipMemcpy(&cnt, prefix_sum_ptr + num, sizeof(uint), hipMemcpyDeviceToHost);
 
     // allocate local GPU storage
     nuggets1 = at::empty({cnt, 2}, octree.options().dtype(at::kInt));
@@ -569,7 +570,7 @@ std::vector<at::Tensor> raytrace_cuda_impl(
       num = 0;
       nuggets0 = nuggets1;
       if (return_depth) depths1 = at::empty({0, depth_dim}, octree.options().dtype(at::kFloat));
-      break; 
+      break;
     }
 
     // Subdivide if more levels remain, repeat
@@ -586,7 +587,7 @@ std::vector<at::Tensor> raytrace_cuda_impl(
 
           if (with_exit) {
             compactify_cuda_kernel<float2><<<(num + RT_NUM_THREADS - 1) / RT_NUM_THREADS, RT_NUM_THREADS>>>(
-                num, reinterpret_cast<float2*>(depths0.data_ptr<float>()), 
+                num, reinterpret_cast<float2*>(depths0.data_ptr<float>()),
                 reinterpret_cast<float2*>(depths1.data_ptr<float>()),
                 info_ptr, prefix_sum_ptr);
           } else {
@@ -623,22 +624,22 @@ void mark_pack_boundaries_cuda_impl(
 }
 
 void diff_cuda_impl(
-    int64_t num_packs, 
+    int64_t num_packs,
     int64_t num_feats,
     int64_t feat_dim,
     at::Tensor feats_in,
     at::Tensor feats_out,
-    at::Tensor pack_indices){ 
-    
+    at::Tensor pack_indices){
+
     int64_t* pack_indices_ptr = pack_indices.data_ptr<int64_t>();
     const int num_threads = 256;
     AT_DISPATCH_FLOATING_TYPES_AND_HALF(feats_in.scalar_type(), "diff_cuda", ([&] {
         const at::cuda::OptionalCUDAGuard device_guard(at::device_of(feats_out));
         auto stream = at::cuda::getCurrentCUDAStream();
         diff_cuda_kernel<scalar_t><<<(num_packs+num_threads-1)/num_threads, num_threads, 0, stream>>>(
-            num_packs, num_feats, feat_dim, 
-            feats_in.data_ptr<scalar_t>(), 
-            feats_out.data_ptr<scalar_t>(), 
+            num_packs, num_feats, feat_dim,
+            feats_in.data_ptr<scalar_t>(),
+            feats_out.data_ptr<scalar_t>(),
             pack_indices_ptr);
     }));
 }
@@ -646,7 +647,7 @@ void diff_cuda_impl(
 void inclusive_sum_cuda_impl(
     int64_t num,
     at::Tensor info,
-    at::Tensor inclusive_sum){ 
+    at::Tensor inclusive_sum){
 
     int* info_ptr = info.data_ptr<int>();
     int* inclusive_sum_ptr = inclusive_sum.data_ptr<int>();
@@ -657,7 +658,7 @@ void inclusive_sum_cuda_impl(
     at::Tensor temp_storage = at::zeros({(int64_t)temp_storage_bytes}, device(at::DeviceType::CUDA).dtype(at::kByte));
     temp_storage_ptr = (void*)temp_storage.data_ptr<uint8_t>();
 
-    CubDebugExit(cub::DeviceScan::InclusiveSum(temp_storage_ptr, temp_storage_bytes, info_ptr, inclusive_sum_ptr, num));
+    HIP_CHECK(cub::DeviceScan::InclusiveSum(temp_storage_ptr, temp_storage_bytes, info_ptr, inclusive_sum_ptr, num));
 }
 
 int sum_reduce_cuda_impl(
@@ -676,9 +677,9 @@ int sum_reduce_cuda_impl(
       auto stream = at::cuda::getCurrentCUDAStream();
       hipMemcpyAsync(&cnt, inclusive_sum_ptr + num_feats - 1, sizeof(int), hipMemcpyDeviceToHost, stream);
       sum_reduce_cuda_kernel<scalar_t><<<(num_feats+num_threads-1)/num_threads, num_threads, 0, stream>>>(
-          num_feats, feat_dim, 
-          feats_in.data_ptr<scalar_t>(), 
-          feats_out.data_ptr<scalar_t>(), 
+          num_feats, feat_dim,
+          feats_in.data_ptr<scalar_t>(),
+          feats_out.data_ptr<scalar_t>(),
           inclusive_sum_ptr);
   }));
   return cnt;
@@ -690,23 +691,23 @@ void cumsum_cuda_impl(
     at::Tensor feats_in,
     at::Tensor feats_out,
     at::Tensor pack_indices,
-    bool exclusive, 
+    bool exclusive,
     bool reverse) {
-    
+
     int64_t num_packs = pack_indices.size(0);
     int* pack_indices_ptr = pack_indices.data_ptr<int>();
 
     int offset = exclusive ? 1 : 0;
-    
+
     const int num_threads = 256;
     if (reverse) {
         AT_DISPATCH_FLOATING_TYPES_AND_HALF(feats_in.scalar_type(), "cumsum_cuda", ([&] {
             const at::cuda::OptionalCUDAGuard device_guard(at::device_of(feats_out));
             auto stream = at::cuda::getCurrentCUDAStream();
             cumsum_reverse_cuda_kernel<scalar_t><<<(num_packs+num_threads) / num_threads, num_threads, 0, stream>>>(
-                num_packs, num_feats, feat_dim, 
-                feats_in.data_ptr<scalar_t>(), 
-                feats_out.data_ptr<scalar_t>(), 
+                num_packs, num_feats, feat_dim,
+                feats_in.data_ptr<scalar_t>(),
+                feats_out.data_ptr<scalar_t>(),
                 pack_indices_ptr, offset);
         }));
     } else {
@@ -714,9 +715,9 @@ void cumsum_cuda_impl(
             const at::cuda::OptionalCUDAGuard device_guard(at::device_of(feats_out));
             auto stream = at::cuda::getCurrentCUDAStream();
             cumsum_cuda_kernel<scalar_t><<<(num_packs+num_threads) / num_threads, num_threads, 0, stream>>>(
-                num_packs, num_feats, feat_dim, 
-                feats_in.data_ptr<scalar_t>(), 
-                feats_out.data_ptr<scalar_t>(), 
+                num_packs, num_feats, feat_dim,
+                feats_in.data_ptr<scalar_t>(),
+                feats_out.data_ptr<scalar_t>(),
                 pack_indices_ptr, offset);
         }));
     }
@@ -730,21 +731,21 @@ void cumprod_cuda_impl(
     at::Tensor pack_indices,
     bool exclusive,
     bool reverse) {
-    
+
     int64_t num_packs = pack_indices.size(0);
     int* pack_indices_ptr = pack_indices.data_ptr<int>();
 
     int offset = exclusive ? 1 : 0;
-    
+
     const int num_threads = 256;
     if (reverse) {
         AT_DISPATCH_FLOATING_TYPES_AND_HALF(feats_in.scalar_type(), "cumprod_reverse_cuda", ([&] {
             const at::cuda::OptionalCUDAGuard device_guard(at::device_of(feats_out));
             auto stream = at::cuda::getCurrentCUDAStream();
             cumprod_reverse_cuda_kernel<scalar_t><<<(num_packs+num_threads) / num_threads, num_threads, 0, stream>>>(
-                num_packs, num_feats, feat_dim, 
-                feats_in.data_ptr<scalar_t>(), 
-                feats_out.data_ptr<scalar_t>(), 
+                num_packs, num_feats, feat_dim,
+                feats_in.data_ptr<scalar_t>(),
+                feats_out.data_ptr<scalar_t>(),
                 pack_indices_ptr, offset);
         }));
     } else {
@@ -752,9 +753,9 @@ void cumprod_cuda_impl(
             const at::cuda::OptionalCUDAGuard device_guard(at::device_of(feats_out));
             auto stream = at::cuda::getCurrentCUDAStream();
             cumprod_cuda_kernel<scalar_t><<<(num_packs+num_threads) / num_threads, num_threads, 0, stream>>>(
-                num_packs, num_feats, feat_dim, 
-                feats_in.data_ptr<scalar_t>(), 
-                feats_out.data_ptr<scalar_t>(), 
+                num_packs, num_feats, feat_dim,
+                feats_in.data_ptr<scalar_t>(),
+                feats_out.data_ptr<scalar_t>(),
                 pack_indices_ptr, offset);
         }));
     }
@@ -764,11 +765,11 @@ void cumprod_cuda_impl(
 
 __global__ void
 generate_rays_cuda_kernel(
-    uint num, 
-    uint width, 
-    uint height, 
+    uint num,
+    uint width,
+    uint height,
     float4x4 tf,
-    float3* ray_o, 
+    float3* ray_o,
     float3* ray_d) {
   uint tidx = blockDim.x * blockIdx.x + threadIdx.x;
 
@@ -787,10 +788,10 @@ generate_rays_cuda_kernel(
 
 
 void generate_primary_rays_cuda_impl(
-    uint width, 
-    uint height, 
+    uint width,
+    uint height,
     float4x4& tf,
-    float3* ray_o, 
+    float3* ray_o,
     float3* ray_d) {
   uint num = width*height;
 
@@ -803,11 +804,11 @@ void generate_primary_rays_cuda_impl(
 
 __global__ void
 plane_intersect_rays_cuda_kernel(
-    uint num, 
-    float3* ray_o, 
+    uint num,
+    float3* ray_o,
     float3* ray_d,
-    float3* output, 
-    float4 plane, 
+    float3* output,
+    float4 plane,
     uint* info) {
   uint tidx = blockDim.x * blockIdx.x + threadIdx.x;
 
@@ -834,11 +835,11 @@ plane_intersect_rays_cuda_kernel(
 
 __global__ void
 compactify_shadow_rays_cuda_kernel(
-    uint num, 
-    float3* p_in, 
-    float3* p_out, 
+    uint num,
+    float3* p_in,
+    float3* p_out,
     uint* map,
-    uint* info, 
+    uint* info,
     uint* prefix_sum) {
 
   uint tidx = blockDim.x * blockIdx.x + threadIdx.x;
@@ -851,9 +852,9 @@ compactify_shadow_rays_cuda_kernel(
 
 __global__ void
 set_shadow_rays_cuda_kernel(
-    uint num, 
-    float3* src, 
-    float3* dst, 
+    uint num,
+    float3* src,
+    float3* dst,
     float3 light) {
 
   uint tidx = blockDim.x * blockIdx.x + threadIdx.x;
@@ -875,7 +876,7 @@ uint generate_shadow_rays_cuda_impl(
     float4& plane,
     uint* info,
     uint* prefix_sum) {
-  
+
   // set up memory for DeviceScan calls
   void* temp_storage_ptr = NULL;
   uint64_t temp_storage_bytes = get_cub_storage_bytes(temp_storage_ptr, info, prefix_sum, num);
@@ -885,7 +886,7 @@ uint generate_shadow_rays_cuda_impl(
   uint cnt = 0;
   plane_intersect_rays_cuda_kernel<<<(num + RT_NUM_THREADS - 1) / RT_NUM_THREADS, RT_NUM_THREADS>>>(
       num, ray_o, ray_d, dst, plane, info);
-  CubDebugExit(cub::DeviceScan::ExclusiveSum(
+  HIP_CHECK(cub::DeviceScan::ExclusiveSum(
       temp_storage_ptr, temp_storage_bytes, info, prefix_sum, num));
   hipMemcpy(&cnt, prefix_sum + num - 1, sizeof(uint), hipMemcpyDeviceToHost);
   compactify_shadow_rays_cuda_kernel<<<(num + RT_NUM_THREADS - 1) / RT_NUM_THREADS, RT_NUM_THREADS>>>(

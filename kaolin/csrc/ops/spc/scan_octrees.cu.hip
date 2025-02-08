@@ -54,7 +54,7 @@ int scan_octrees_cuda_impl(
   uint* num_childrens_per_node_ptr = reinterpret_cast<uint*>(num_childrens_per_node.data_ptr<int>());
   uint* prefix_sum_ptr = reinterpret_cast<uint*>(prefix_sum.data_ptr<int>());
   int* pyramid_ptr = pyramid.data_ptr<int>();
-  
+
   void* temp_storage_ptr = NULL;
   uint64_t temp_storage_bytes = get_cub_storage_bytes(
         temp_storage_ptr, num_childrens_per_node_ptr, prefix_sum_ptr + 1, num_childrens_per_node.size(0));
@@ -76,7 +76,7 @@ int scan_octrees_cuda_impl(
     // compute exclusive sum 1 element beyond end of list to get inclusive sum starting at prefix_sum_ptr+1
     scan_nodes_cuda_kernel<<< (osize + (THREADS_PER_BLOCK - 1)) / THREADS_PER_BLOCK, THREADS_PER_BLOCK >>>(
         osize, O0, num_childrens_per_node_ptr);
-    CubDebugExit(cub::DeviceScan::InclusiveSum(
+    HIP_CHECK(cub::DeviceScan::InclusiveSum(
         temp_storage_ptr, temp_storage_bytes, num_childrens_per_node_ptr,
         EX0 + 1, osize));
 

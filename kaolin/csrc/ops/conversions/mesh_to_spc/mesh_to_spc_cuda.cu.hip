@@ -30,6 +30,7 @@
 #include "../../spc/spc.h"
 #include "../../../spc_math.h"
 #include "../../../spc_utils.cuh"
+#include "../../../utils.h"
 
 
 namespace kaolin {
@@ -42,17 +43,17 @@ using namespace at::indexing;
 namespace {
 
 size_t get_cub_storage_bytes_sort_pairs(
-  void* d_temp_storage, 
-  const uint64_t* d_morton_codes_in, 
-  uint64_t* d_morton_codes_out, 
-  const uint64_t* d_values_in, 
-  uint64_t* d_values_out, 
+  void* d_temp_storage,
+  const uint64_t* d_morton_codes_in,
+  uint64_t* d_morton_codes_out,
+  const uint64_t* d_values_in,
+  uint64_t* d_values_out,
   uint32_t num_items)
 {
     size_t    temp_storage_bytes = 0;
-    CubDebugExit(
+    HIP_CHECK(
         cub::DeviceRadixSort::SortPairs(d_temp_storage, temp_storage_bytes,
-                                        d_morton_codes_in, d_morton_codes_out, 
+                                        d_morton_codes_in, d_morton_codes_out,
                                         d_values_in, d_values_out, num_items)
     );
     return temp_storage_bytes;
@@ -61,8 +62,8 @@ size_t get_cub_storage_bytes_sort_pairs(
 
 __global__ void
 d_MarkDuplicates(
-  uint num, 
-  morton_code* mcode, 
+  uint num,
+  morton_code* mcode,
   uint* occupancy)
 {
   uint tidx = blockDim.x * blockIdx.x + threadIdx.x;
@@ -79,12 +80,12 @@ d_MarkDuplicates(
 
 __global__ void
 d_Compactify(
-  uint num, 
-  morton_code* mIn, 
-  morton_code* mOut, 
-  uint* occupancy, 
-  uint* prefix_sum, 
-  uint64_t* idx_in, 
+  uint num,
+  morton_code* mIn,
+  morton_code* mOut,
+  uint* occupancy,
+  uint* prefix_sum,
+  uint64_t* idx_in,
   uint64_t* idx_out)
 {
   uint tidx = blockDim.x * blockIdx.x + threadIdx.x;
@@ -98,7 +99,7 @@ d_Compactify(
 } // namespace
 
 // determine if triangle and voxel overlap w.r.t. axis using separating axis theorem
-__device__ bool 
+__device__ bool
 TriangleVoxelSAT(double3 v0, double3 v1, double3 v2, float voxelHalfSize, double3 axis)
 {
     double d0 = dot(v0, axis);
@@ -118,7 +119,7 @@ TriangleVoxelSAT(double3 v0, double3 v1, double3 v2, float voxelHalfSize, double
 
 
 // determine if triangle and voxel overlap by testing against 13 critical axis
-__device__ bool 
+__device__ bool
 TriangleVoxelTest(float3 fva, float3 fvb, float3 fvc, float3 voxelcenter, float voxelHalfSize)
 {
     double3 va = make_double3(fva.x-voxelcenter.x, fva.y-voxelcenter.y, fva.z-voxelcenter.z);
@@ -143,7 +144,7 @@ TriangleVoxelTest(float3 fva, float3 fvb, float3 fvc, float3 voxelcenter, float 
     double3 a20 = make_double3(-ab.y, ab.x, 0.0);
     double3 a21 = make_double3(-bc.y, bc.x, 0.0);
     double3 a22 = make_double3(-ca.y, ca.x, 0.0);
-    
+
     if (!TriangleVoxelSAT(va, vb, vc, voxelHalfSize, a00) ||
         !TriangleVoxelSAT(va, vb, vc, voxelHalfSize, a01) ||
         !TriangleVoxelSAT(va, vb, vc, voxelHalfSize, a02) ||
@@ -165,16 +166,16 @@ TriangleVoxelTest(float3 fva, float3 fvb, float3 fvc, float3 voxelcenter, float 
 
 namespace {
 
-// This function will iterate over t(triangle intersection proposals) and determine if they result in an 
+// This function will iterate over t(triangle intersection proposals) and determine if they result in an
 // intersection. If they do, the occupancy tensor is set to number of voxels in subdivision or compaction
 __global__ void
 decide_cuda_kernel(
-  const uint num, 
-  const float3* __restrict__ face_vertices, 
+  const uint num,
+  const float3* __restrict__ face_vertices,
   const uint64_t* __restrict__ morton_codes, // voxel morton codes
   const uint64_t* __restrict__ triangle_id, // face ids
-  uint* __restrict__ occupancy, 
-  const uint32_t level, 
+  uint* __restrict__ occupancy,
+  const uint32_t level,
   const uint32_t not_done) {
 
   uint tidx = blockDim.x * blockIdx.x + threadIdx.x;
@@ -202,15 +203,15 @@ decide_cuda_kernel(
 }
 
 
-// This function will subdivide input voxel to out voxels 
+// This function will subdivide input voxel to out voxels
 __global__ void
 subdivide_cuda_kernel(
-    const uint num, 
+    const uint num,
     const uint64_t* __restrict__ morton_codes_in, // input voxel morton codes
     const uint64_t* __restrict__ triangle_id_in, // input face ids
     uint64_t* __restrict__ morton_codes_out, // output voxel morton codes
     uint64_t* __restrict__ triangle_id_out, // output face ids
-    const uint* __restrict__ occupancy,  
+    const uint* __restrict__ occupancy,
     const uint* __restrict__ prefix_sum) {
 
   uint tidx = blockDim.x * blockIdx.x + threadIdx.x;
@@ -236,17 +237,17 @@ subdivide_cuda_kernel(
 // compacify input buffers
 __global__ void
 compactify_cuda_kernel(
-    const uint num, 
-    const uint64_t* __restrict__ morton_codes_in, 
-    const uint64_t* __restrict__ triangle_id_in, 
-    uint64_t* __restrict__ morton_codes_out, 
-    uint64_t* __restrict__ triangle_id_out, 
+    const uint num,
+    const uint64_t* __restrict__ morton_codes_in,
+    const uint64_t* __restrict__ triangle_id_in,
+    uint64_t* __restrict__ morton_codes_out,
+    uint64_t* __restrict__ triangle_id_out,
     const uint* __restrict__ occupancy,
     const uint* __restrict__ prefix_sum) {
 
   uint tidx = blockDim.x * blockIdx.x + threadIdx.x;
 
-  if (tidx < num && occupancy[tidx]) { 
+  if (tidx < num && occupancy[tidx]) {
     morton_codes_out[prefix_sum[tidx]] = morton_codes_in[tidx];
     triangle_id_out[prefix_sum[tidx]] = triangle_id_in[tidx];
   }
@@ -256,10 +257,10 @@ compactify_cuda_kernel(
 // compute 3x3 matrix that maps 3d cartesian coords to 3d barycentriuc coods, w.r.t a given triangle
 __global__ void
 d_ComputeBaryCoords(
-    uint num, 
+    uint num,
     const float3* __restrict__ face_vertices,
-    const uint64_t* __restrict__ morton_codes, 
-    const uint64_t* __restrict__ triangle_id, 
+    const uint64_t* __restrict__ morton_codes,
+    const uint64_t* __restrict__ triangle_id,
     float2* barycoords,
     const uint32_t level) {
   uint tidx = blockDim.x * blockIdx.x + threadIdx.x;
@@ -306,18 +307,18 @@ d_ComputeBaryCoords(
       b.z = 0.;
     }
     b *= 1. / (b.x + b.y + b.z); // normalize to x+y+z==1 plane
-    
+
     barycoords[tidx] = make_float2(b.x, b.y);
   }
 }
 
 
 std::vector<at::Tensor> mesh_to_spc_cuda_impl(
-    at::Tensor face_vertices, 
+    at::Tensor face_vertices,
     uint target_level) {
-  // number of triangles, and indices pointer 
+  // number of triangles, and indices pointer
   int ntris = face_vertices.size(0);
- 
+
   // allocate local GPU storage
   at::Tensor morton_codes0 = at::zeros({ntris}, face_vertices.options().dtype(at::kLong));
   at::Tensor triangle_id0 = at::arange(ntris, face_vertices.options().dtype(at::kLong));
@@ -327,10 +328,10 @@ std::vector<at::Tensor> mesh_to_spc_cuda_impl(
   at::Tensor occupancy;
   at::Tensor prefix_sum;
   at::Tensor temp_storage;
- 
+
   uint64_t temp_storage_bytes;
 
-  uint next_cnt, buffer = 0; 
+  uint next_cnt, buffer = 0;
   uint curr_cnt = ntris;
   for (uint32_t l = 0; l <= target_level; l++) {
 
@@ -339,22 +340,22 @@ std::vector<at::Tensor> mesh_to_spc_cuda_impl(
 
     // Do the proposals hit?
     decide_cuda_kernel<<<(curr_cnt + NUM_THREADS - 1) / NUM_THREADS, NUM_THREADS>>>(
-      curr_cnt, 
-      reinterpret_cast<float3*>(face_vertices.data_ptr<float>()), 
-      reinterpret_cast<uint64_t*>(morton_codes0.data_ptr<int64_t>()), 
-      reinterpret_cast<uint64_t*>(triangle_id0.data_ptr<int64_t>()), 
+      curr_cnt,
+      reinterpret_cast<float3*>(face_vertices.data_ptr<float>()),
+      reinterpret_cast<uint64_t*>(morton_codes0.data_ptr<int64_t>()),
+      reinterpret_cast<uint64_t*>(triangle_id0.data_ptr<int64_t>()),
       reinterpret_cast<uint*>(occupancy.data_ptr<int>()), l, target_level - l);
 
     // set up memory for DeviceScan calls
-    temp_storage_bytes = get_cub_storage_bytes(NULL, reinterpret_cast<uint*>(occupancy.data_ptr<int>()), 
+    temp_storage_bytes = get_cub_storage_bytes(NULL, reinterpret_cast<uint*>(occupancy.data_ptr<int>()),
       reinterpret_cast<uint*>(prefix_sum.data_ptr<int>()), curr_cnt+1);
     temp_storage = at::empty({(int64_t)temp_storage_bytes}, face_vertices.options().dtype(at::kByte));
 
-    CubDebugExit(cub::DeviceScan::ExclusiveSum(
-      (void*)temp_storage.data_ptr<uint8_t>(), temp_storage_bytes, 
-      reinterpret_cast<uint*>(occupancy.data_ptr<int>()), 
+    HIP_CHECK(cub::DeviceScan::ExclusiveSum(
+      (void*)temp_storage.data_ptr<uint8_t>(), temp_storage_bytes,
+      reinterpret_cast<uint*>(occupancy.data_ptr<int>()),
       reinterpret_cast<uint*>(prefix_sum.data_ptr<int>()), curr_cnt+1)); //start sum on second element
-    hipMemcpy(&next_cnt, reinterpret_cast<uint*>(prefix_sum.data_ptr<int>()) + curr_cnt, 
+    hipMemcpy(&next_cnt, reinterpret_cast<uint*>(prefix_sum.data_ptr<int>()) + curr_cnt,
                sizeof(uint), hipMemcpyDeviceToHost);
 
     if (next_cnt == 0) {
@@ -372,21 +373,21 @@ std::vector<at::Tensor> mesh_to_spc_cuda_impl(
     // Subdivide if more levels remain, repeat
     if (l < target_level) {
       subdivide_cuda_kernel<<<(curr_cnt + NUM_THREADS - 1) / NUM_THREADS, NUM_THREADS>>>(
-        curr_cnt, 
-        reinterpret_cast<uint64_t*>(morton_codes0.data_ptr<int64_t>()), 
-        reinterpret_cast<uint64_t*>(triangle_id0.data_ptr<int64_t>()), 
-        reinterpret_cast<uint64_t*>(morton_codes1.data_ptr<int64_t>()), 
-        reinterpret_cast<uint64_t*>(triangle_id1.data_ptr<int64_t>()), 
-        reinterpret_cast<uint*>(occupancy.data_ptr<int>()), 
+        curr_cnt,
+        reinterpret_cast<uint64_t*>(morton_codes0.data_ptr<int64_t>()),
+        reinterpret_cast<uint64_t*>(triangle_id0.data_ptr<int64_t>()),
+        reinterpret_cast<uint64_t*>(morton_codes1.data_ptr<int64_t>()),
+        reinterpret_cast<uint64_t*>(triangle_id1.data_ptr<int64_t>()),
+        reinterpret_cast<uint*>(occupancy.data_ptr<int>()),
         reinterpret_cast<uint*>(prefix_sum.data_ptr<int>()));
     } else {
       compactify_cuda_kernel<<<(curr_cnt + NUM_THREADS - 1) / NUM_THREADS, NUM_THREADS>>>(
-        curr_cnt, 
-        reinterpret_cast<uint64_t*>(morton_codes0.data_ptr<int64_t>()), 
-        reinterpret_cast<uint64_t*>(triangle_id0.data_ptr<int64_t>()), 
-        reinterpret_cast<uint64_t*>(morton_codes1.data_ptr<int64_t>()), 
-        reinterpret_cast<uint64_t*>(triangle_id1.data_ptr<int64_t>()), 
-        reinterpret_cast<uint*>(occupancy.data_ptr<int>()), 
+        curr_cnt,
+        reinterpret_cast<uint64_t*>(morton_codes0.data_ptr<int64_t>()),
+        reinterpret_cast<uint64_t*>(triangle_id0.data_ptr<int64_t>()),
+        reinterpret_cast<uint64_t*>(morton_codes1.data_ptr<int64_t>()),
+        reinterpret_cast<uint64_t*>(triangle_id1.data_ptr<int64_t>()),
+        reinterpret_cast<uint*>(occupancy.data_ptr<int>()),
         reinterpret_cast<uint*>(prefix_sum.data_ptr<int>()));
     }
 
@@ -401,66 +402,66 @@ std::vector<at::Tensor> mesh_to_spc_cuda_impl(
 
   // set up memory for DeviceScan calls
   temp_storage_bytes = get_cub_storage_bytes_sort_pairs(
-    NULL, 
-    reinterpret_cast<uint64_t*>(morton_codes0.data_ptr<int64_t>()), 
-    reinterpret_cast<uint64_t*>(morton_codes1.data_ptr<int64_t>()), 
-    reinterpret_cast<uint64_t*>(triangle_id0.data_ptr<int64_t>()), 
+    NULL,
+    reinterpret_cast<uint64_t*>(morton_codes0.data_ptr<int64_t>()),
+    reinterpret_cast<uint64_t*>(morton_codes1.data_ptr<int64_t>()),
+    reinterpret_cast<uint64_t*>(triangle_id0.data_ptr<int64_t>()),
     reinterpret_cast<uint64_t*>(triangle_id1.data_ptr<int64_t>()), curr_cnt);
   temp_storage = at::empty({(int64_t)temp_storage_bytes}, face_vertices.options().dtype(at::kByte));
 
-  CubDebugExit(cub::DeviceRadixSort::SortPairs(
-    (void*)temp_storage.data_ptr<uint8_t>(), 
-    temp_storage_bytes, 
-    reinterpret_cast<uint64_t*>(morton_codes0.data_ptr<int64_t>()), 
-    reinterpret_cast<uint64_t*>(morton_codes1.data_ptr<int64_t>()), 
-    reinterpret_cast<uint64_t*>(triangle_id0.data_ptr<int64_t>()), 
+  HIP_CHECK(cub::DeviceRadixSort::SortPairs(
+    (void*)temp_storage.data_ptr<uint8_t>(),
+    temp_storage_bytes,
+    reinterpret_cast<uint64_t*>(morton_codes0.data_ptr<int64_t>()),
+    reinterpret_cast<uint64_t*>(morton_codes1.data_ptr<int64_t>()),
+    reinterpret_cast<uint64_t*>(triangle_id0.data_ptr<int64_t>()),
     reinterpret_cast<uint64_t*>(triangle_id1.data_ptr<int64_t>()), curr_cnt));
 
   occupancy = at::empty({curr_cnt+1}, face_vertices.options().dtype(at::kInt));
   prefix_sum = at::empty({curr_cnt+1}, face_vertices.options().dtype(at::kInt));
 
   // set first element to zero
-  CubDebugExit(hipMemcpy(reinterpret_cast<uint*>(prefix_sum.data_ptr<int>()), &buffer, sizeof(uint), hipMemcpyHostToDevice));
+  HIP_CHECK(hipMemcpy(reinterpret_cast<uint*>(prefix_sum.data_ptr<int>()), &buffer, sizeof(uint), hipMemcpyHostToDevice));
 
-  // Mark boundaries of unique  
+  // Mark boundaries of unique
   d_MarkDuplicates <<<(curr_cnt + 63) / 64, 64 >>> (
-    curr_cnt, 
-    reinterpret_cast<uint64_t*>(morton_codes1.data_ptr<int64_t>()), 
+    curr_cnt,
+    reinterpret_cast<uint64_t*>(morton_codes1.data_ptr<int64_t>()),
     reinterpret_cast<uint*>(occupancy.data_ptr<int>()));
 
   // set up memory for DeviceScan calls
   temp_storage_bytes = get_cub_storage_bytes(
-    NULL, 
-    reinterpret_cast<uint*>(occupancy.data_ptr<int>()), 
+    NULL,
+    reinterpret_cast<uint*>(occupancy.data_ptr<int>()),
     reinterpret_cast<uint*>(prefix_sum.data_ptr<int>()), curr_cnt+1);
   temp_storage = at::empty({(int64_t)temp_storage_bytes}, face_vertices.options().dtype(at::kByte));
 
   uint psize;
   cub::DeviceScan::ExclusiveSum(
-    (void*)temp_storage.data_ptr<uint8_t>(), 
-    temp_storage_bytes, 
-    reinterpret_cast<uint*>(occupancy.data_ptr<int>()), 
+    (void*)temp_storage.data_ptr<uint8_t>(),
+    temp_storage_bytes,
+    reinterpret_cast<uint*>(occupancy.data_ptr<int>()),
     reinterpret_cast<uint*>(prefix_sum.data_ptr<int>()), curr_cnt+1);
-  CubDebugExit(hipMemcpy(&psize, reinterpret_cast<uint*>(prefix_sum.data_ptr<int>()) + curr_cnt, sizeof(uint), hipMemcpyDeviceToHost));
+  HIP_CHECK(hipMemcpy(&psize, reinterpret_cast<uint*>(prefix_sum.data_ptr<int>()) + curr_cnt, sizeof(uint), hipMemcpyDeviceToHost));
 
   d_Compactify <<<(curr_cnt + 63) / 64, 64 >>> (
-    curr_cnt, 
-    reinterpret_cast<uint64_t*>(morton_codes1.data_ptr<int64_t>()), 
-    reinterpret_cast<uint64_t*>(morton_codes0.data_ptr<int64_t>()), 
-    reinterpret_cast<uint*>(occupancy.data_ptr<int>()), 
-    reinterpret_cast<uint*>(prefix_sum.data_ptr<int>()), 
-    reinterpret_cast<uint64_t*>(triangle_id1.data_ptr<int64_t>()), 
+    curr_cnt,
+    reinterpret_cast<uint64_t*>(morton_codes1.data_ptr<int64_t>()),
+    reinterpret_cast<uint64_t*>(morton_codes0.data_ptr<int64_t>()),
+    reinterpret_cast<uint*>(occupancy.data_ptr<int>()),
+    reinterpret_cast<uint*>(prefix_sum.data_ptr<int>()),
+    reinterpret_cast<uint64_t*>(triangle_id1.data_ptr<int64_t>()),
     reinterpret_cast<uint64_t*>(triangle_id0.data_ptr<int64_t>()));
   at::Tensor bary_coords = at::zeros({psize, 2}, face_vertices.options().dtype(at::kFloat));
 
   d_ComputeBaryCoords <<<(psize + 63) / 64, 64 >>> (
     psize,
     reinterpret_cast<float3*>(face_vertices.data_ptr<float>()),
-    reinterpret_cast<uint64_t*>(morton_codes0.data_ptr<int64_t>()), 
-    reinterpret_cast<uint64_t*>(triangle_id0.data_ptr<int64_t>()), 
+    reinterpret_cast<uint64_t*>(morton_codes0.data_ptr<int64_t>()),
+    reinterpret_cast<uint64_t*>(triangle_id0.data_ptr<int64_t>()),
     reinterpret_cast<float2*>(bary_coords.data_ptr<float>()), target_level);
 
-  morton_codes1 = morton_codes0.index({Slice(None, psize)}).contiguous();   
+  morton_codes1 = morton_codes0.index({Slice(None, psize)}).contiguous();
   triangle_id1 = triangle_id0.index({Slice(None, psize)}).contiguous();
 
   at::Tensor octree = morton_to_octree(morton_codes1, target_level);

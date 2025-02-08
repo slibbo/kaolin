@@ -30,6 +30,7 @@
 
 #include "../../../spc_math.h"
 #include "../../../spc_utils.cuh"
+#include "../../../utils.h"
 
 namespace kaolin {
 
@@ -40,17 +41,17 @@ using namespace at::indexing;
 namespace {
 
 size_t get_cub_storage_bytes_sort_pairs(
-  void* d_temp_storage, 
-  const uint64_t* d_morton_codes_in, 
-  uint64_t* d_morton_codes_out, 
-  const uint64_t* d_values_in, 
-  uint64_t* d_values_out, 
+  void* d_temp_storage,
+  const uint64_t* d_morton_codes_in,
+  uint64_t* d_morton_codes_out,
+  const uint64_t* d_values_in,
+  uint64_t* d_values_out,
   uint32_t num_items)
 {
     size_t    temp_storage_bytes = 0;
-    CubDebugExit(
+    HIP_CHECK(
         cub::DeviceRadixSort::SortPairs(d_temp_storage, temp_storage_bytes,
-                                        d_morton_codes_in, d_morton_codes_out, 
+                                        d_morton_codes_in, d_morton_codes_out,
                                         d_values_in, d_values_out, num_items)
     );
     return temp_storage_bytes;
@@ -58,8 +59,8 @@ size_t get_cub_storage_bytes_sort_pairs(
 
 __global__ void
 d_MarkDuplicates(
-  uint32_t num, 
-  morton_code* mcode, 
+  uint32_t num,
+  morton_code* mcode,
   uint32_t* occupancy)
 {
   uint32_t tidx = blockDim.x * blockIdx.x + threadIdx.x;
@@ -73,10 +74,10 @@ d_MarkDuplicates(
 
 __global__ void
 d_Compactify(
-  const uint32_t num, 
-  const morton_code* mIn, 
-  morton_code* mOut, 
-  const uint32_t* occupancy, 
+  const uint32_t num,
+  const morton_code* mIn,
+  morton_code* mOut,
+  const uint32_t* occupancy,
   const uint32_t* prefix_sum)
 {
   uint32_t tidx = blockDim.x * blockIdx.x + threadIdx.x;
@@ -88,15 +89,15 @@ d_Compactify(
   }
 }
 
-// This function will subdivide input voxel to out voxels 
+// This function will subdivide input voxel to out voxels
 __global__ void
 subdivide_cuda_kernel(
-    const uint32_t num, 
+    const uint32_t num,
     const uint64_t* __restrict__ morton_codes_in, // input voxel morton codes
     const uint64_t* __restrict__ triangle_id_in, // input face ids
     uint64_t* __restrict__ morton_codes_out, // output voxel morton codes
     uint64_t* __restrict__ triangle_id_out, // output face ids
-    const uint32_t* __restrict__ occupancy,  
+    const uint32_t* __restrict__ occupancy,
     const uint32_t* __restrict__ prefix_sum) {
 
   uint32_t tidx = blockDim.x * blockIdx.x + threadIdx.x;
@@ -122,18 +123,18 @@ subdivide_cuda_kernel(
 // compacify input buffers
 __global__ void
 compactify_cuda_kernel(
-    const uint32_t num, 
-    const uint64_t* __restrict__ morton_codes_in, 
-    const uint64_t* __restrict__ triangle_id_in, 
-    uint64_t* __restrict__ morton_codes_out, 
-    uint64_t* __restrict__ triangle_id_out, 
+    const uint32_t num,
+    const uint64_t* __restrict__ morton_codes_in,
+    const uint64_t* __restrict__ triangle_id_in,
+    uint64_t* __restrict__ morton_codes_out,
+    uint64_t* __restrict__ triangle_id_out,
     const uint32_t* __restrict__ occupancy,
     const uint32_t* __restrict__ prefix_sum) {
 
   uint32_t tidx = blockDim.x * blockIdx.x + threadIdx.x;
   if (tidx >= num) return;
 
-  if (occupancy[tidx]) { 
+  if (occupancy[tidx]) {
     uint32_t base_idx = tidx == 0 ? 0 : prefix_sum[tidx-1];
     morton_codes_out[base_idx] = morton_codes_in[tidx];
     triangle_id_out[base_idx] = triangle_id_in[tidx];
@@ -187,8 +188,8 @@ __device__ bool edge_test(
     const float s,
     const float t,
     const float l,
-    const float u) 
-    { 
+    const float u)
+    {
       double a = c0;
       double b = 2*(c1*s + c2*t);
       double c = (c3*s*s + 2*c4*s*t + c5*t*t) - cp6;
@@ -209,37 +210,37 @@ __device__ bool edge_test(
     }
 
 __device__ bool VoxelEdgesIntersectEllipsoid(
-    const float3& mean, 
-    const float* Covi, 
-    const float3& v, 
-    const float vsize) 
+    const float3& mean,
+    const float* Covi,
+    const float3& v,
+    const float vsize)
     {
 
    float3 p = v - mean;
     // if edge crossings, true true
     for (int i = 0; i < 4; i++)
     {
-      if (edge_test(Covi[0], Covi[1], Covi[2], Covi[3], Covi[4], Covi[5], Covi[6], 
+      if (edge_test(Covi[0], Covi[1], Covi[2], Covi[3], Covi[4], Covi[5], Covi[6],
           p.y+(i/2?vsize:0.0), p.z+(i%2?vsize:0.0), p.x, p.x+vsize)) return true;
 
-      if (edge_test(Covi[3], Covi[1], Covi[4], Covi[0], Covi[2], Covi[5], Covi[6], 
+      if (edge_test(Covi[3], Covi[1], Covi[4], Covi[0], Covi[2], Covi[5], Covi[6],
           p.x+(i/2?vsize:0.0), p.z+(i%2?vsize:0.0), p.y, p.y+vsize)) return true;
 
       if (edge_test(Covi[5], Covi[2], Covi[4], Covi[0], Covi[1], Covi[3], Covi[6],
           p.x+(i/2?vsize:0.0), p.y+(i%2?vsize:0.0), p.z, p.z+vsize)) return true;
     }
 
-    return  false; 
+    return  false;
   }
 
 __device__ bool facetest(
-    const float* p, 
-    float* q, 
-    const float vsize, 
+    const float* p,
+    float* q,
+    const float vsize,
     const int i,
     const int j,
     const int k,
-    const float vs) 
+    const float vs)
     {
       float t = (q[i]-(p[i]+vs))/(2.0*q[i]);
 
@@ -257,12 +258,12 @@ __device__ bool facetest(
 
 __device__ bool
 VoxelFaceOverlapEllipsoid(
-    const float3& mean, 
+    const float3& mean,
     float3 cp0,
     float3 cp1,
     float3 cp2,
-    const float3& v, 
-    const float vsize) 
+    const float3& v,
+    const float vsize)
     {
       float3 p = v - mean;
       bool b[6];
@@ -284,20 +285,20 @@ VoxelFaceOverlapEllipsoid(
 __device__ bool
 GSVoxelInOut(
     const uint64_t gaus_idx,
-    const float3& mean, 
-    const float* Covi, 
+    const float3& mean,
+    const float* Covi,
     const float3& ab0,
     const float3& ab1,
     const float3& cp0,
     const float3& cp1,
     const float3& cp2,
-    const float3& v, 
-    const float vsize) 
+    const float3& v,
+    const float vsize)
     {
       // if (gaus_idx != 27078) return false;
       // return AABBinsideVoxel(mean, mean, v, vsize);
 
-    if (AABBinsideVoxel(ab0, ab1, v, vsize)) 
+    if (AABBinsideVoxel(ab0, ab1, v, vsize))
       return true;
 
     if (!VoxelOverlapAABB(ab0, ab1, v, vsize))
@@ -310,19 +311,19 @@ GSVoxelInOut(
 
 }
 
-// This function will iterate over t(triangle intersection proposals) and determine if they result in an 
+// This function will iterate over t(triangle intersection proposals) and determine if they result in an
 // intersection. If they do, the occupancy tensor is set to number of voxels in subdivision or compaction
 __global__ void
 decide_cuda_kernel(
-  const uint32_t num, 
-  const float3* __restrict__ means3D, 
-  const float* __restrict__ cov3DInvs, 
-  const float3* __restrict__ AABBgs, 
+  const uint32_t num,
+  const float3* __restrict__ means3D,
+  const float* __restrict__ cov3DInvs,
+  const float3* __restrict__ AABBgs,
   const float3* __restrict__ ContactPnts,
   const uint64_t* __restrict__ morton_codes, // voxel morton codes
   const uint64_t* __restrict__ gaus_id, // face ids
-  uint32_t* __restrict__ occupancy, 
-  const uint32_t level, 
+  uint32_t* __restrict__ occupancy,
+  const uint32_t level,
   const uint32_t not_done) {
 
   uint32_t tidx = blockDim.x * blockIdx.x + threadIdx.x;
@@ -359,14 +360,14 @@ decide_cuda_kernel(
 // of quaternion normalization.
 // Modified from Guass Splat code
 __device__ void computeCov3DInv(
-  const uint32_t tidx, 
-  const float3 mean, 
-  float3 scale, 
-  const float4 rot, 
-  float* cov3D, 
-  float3* AABBgs, 
+  const uint32_t tidx,
+  const float3 mean,
+  float3 scale,
+  const float4 rot,
+  float* cov3D,
+  float3* AABBgs,
   float3* ContactPnts,
-  const float iso, 
+  const float iso,
   const float tol,
   const uint32_t level)
 {
@@ -448,7 +449,7 @@ __device__ void computeCov3DInv(
   ContactPnts[0] = P[0];
   ContactPnts[1] = P[2];
   ContactPnts[2] = P[4];
- 
+
   // find AABB of closest points
   float3 Pmin = make_float3(FLT_MAX, FLT_MAX, FLT_MAX);
   float3 Pmax = make_float3(-FLT_MAX, -FLT_MAX, -FLT_MAX);
@@ -468,10 +469,10 @@ __device__ void computeCov3DInv(
 
 __global__ void
 computeCov3DInv_kernel(
-  const uint32_t num, 
-  const float3* __restrict__ means3D, 
-  const float3* __restrict__ scales, 
-  const float4* __restrict__ rotations, 
+  const uint32_t num,
+  const float3* __restrict__ means3D,
+  const float3* __restrict__ scales,
+  const float4* __restrict__ rotations,
   float* __restrict__ Cov3DInvs,
   float3* __restrict__ AABBgs,
   float3* __restrict__ ContactPnts,
@@ -482,7 +483,7 @@ computeCov3DInv_kernel(
   uint32_t tidx = blockDim.x * blockIdx.x + threadIdx.x;
   if (tidx >= num) return;
 
-	computeCov3DInv(tidx, means3D[tidx], scales[tidx], rotations[tidx], 
+	computeCov3DInv(tidx, means3D[tidx], scales[tidx], rotations[tidx],
                   Cov3DInvs + tidx * 8, AABBgs + tidx * 2, ContactPnts + tidx * 3,
                   iso, tol, level);
 }
@@ -507,13 +508,13 @@ __device__ float atomicAlpha(float* address, float val)
 
 __global__ void
 MergeOpacities_kernel(
-  const uint32_t num, 
+  const uint32_t num,
   const uint64_t* __restrict__ morton_codes, // voxel morton codes, sorted
   const uint64_t* __restrict__ gaus_id, // corresponding gauss ids
   const uint32_t* __restrict__ prefix_sum, // inclusive sum of morton code boundary marks
-  const float3* __restrict__ means3D, 
+  const float3* __restrict__ means3D,
   const float* __restrict__ Cov3DInvs,
-  const float* __restrict__ opacities, 
+  const float* __restrict__ opacities,
   float* __restrict__ merged_opacities,
   const uint32_t level) {
 
@@ -540,7 +541,7 @@ MergeOpacities_kernel(
   v.y = fmaf(gridPos.y + 0.5f, voxelSize, -1.0f - mean.y);
   v.z = fmaf(gridPos.z + 0.5f, voxelSize, -1.0f - mean.z);
 
-  float gval = c0*v.x*v.x + 2.0f*c1*v.x*v.y + 2.0f*c2*v.x*v.z + 
+  float gval = c0*v.x*v.x + 2.0f*c1*v.x*v.y + 2.0f*c2*v.x*v.z +
                 c3*v.y*v.y + 2.0f*c4*v.y*v.z + c5*v.z*v.z;
 
   float power = -0.5f * gval;
@@ -572,13 +573,13 @@ std::vector<at::Tensor> gs_to_spc_cuda_impl(
   at::Tensor ContactPnts = at::empty({ngaus, 9}, means3D.options().dtype(at::kFloat));
 
   computeCov3DInv_kernel<<<(ngaus + NUM_THREADS - 1) / NUM_THREADS, NUM_THREADS>>>(
-    ngaus, 
-    reinterpret_cast<float3*>(means3D.data_ptr<float>()), 
-    reinterpret_cast<float3*>(scales.data_ptr<float>()), 
-    reinterpret_cast<float4*>(rotations.data_ptr<float>()), 
+    ngaus,
+    reinterpret_cast<float3*>(means3D.data_ptr<float>()),
+    reinterpret_cast<float3*>(scales.data_ptr<float>()),
+    reinterpret_cast<float4*>(rotations.data_ptr<float>()),
     Cov3DInvs.data_ptr<float>(),
     reinterpret_cast<float3*>(AABBgs.data_ptr<float>()),
-    reinterpret_cast<float3*>(ContactPnts.data_ptr<float>()), 
+    reinterpret_cast<float3*>(ContactPnts.data_ptr<float>()),
     iso, tol, target_level);
 
   // allocate local GPU storage
@@ -593,40 +594,40 @@ std::vector<at::Tensor> gs_to_spc_cuda_impl(
   at::Tensor occupancy = at::empty({0}, means3D.options().dtype(at::kInt));
   at::Tensor prefix_sum = at::empty({0}, means3D.options().dtype(at::kInt));
   at::Tensor temp_storage = at::empty({0}, means3D.options().dtype(at::kByte));
- 
+
   uint64_t temp_storage_bytes;
   uint32_t next_cnt, curr_cnt = ngaus;
   uint32_t curr_buf = 0;
-  for (uint32_t l = 0; l <= target_level; l++) { 
+  for (uint32_t l = 0; l <= target_level; l++) {
 
     occupancy.resize_({curr_cnt});
     prefix_sum.resize_({curr_cnt});
 
     // Do the proposals hit?
     decide_cuda_kernel<<<(curr_cnt + NUM_THREADS - 1) / NUM_THREADS, NUM_THREADS>>>(
-      curr_cnt, 
+      curr_cnt,
 
-      reinterpret_cast<float3*>(means3D.data_ptr<float>()), 
+      reinterpret_cast<float3*>(means3D.data_ptr<float>()),
       Cov3DInvs.data_ptr<float>(),
       reinterpret_cast<float3*>(AABBgs.data_ptr<float>()),
-      reinterpret_cast<float3*>(ContactPnts.data_ptr<float>()), 
+      reinterpret_cast<float3*>(ContactPnts.data_ptr<float>()),
 
-      reinterpret_cast<uint64_t*>(morton_codes[curr_buf].data_ptr<int64_t>()), 
-      reinterpret_cast<uint64_t*>(gaus_id[curr_buf].data_ptr<int64_t>()), 
-      reinterpret_cast<uint32_t*>(occupancy.data_ptr<int>()), 
+      reinterpret_cast<uint64_t*>(morton_codes[curr_buf].data_ptr<int64_t>()),
+      reinterpret_cast<uint64_t*>(gaus_id[curr_buf].data_ptr<int64_t>()),
+      reinterpret_cast<uint32_t*>(occupancy.data_ptr<int>()),
       l, target_level - l);
 
     // set up memory for DeviceScan calls
-    temp_storage_bytes = get_cub_storage_bytes(NULL, reinterpret_cast<uint32_t*>(occupancy.data_ptr<int>()), 
+    temp_storage_bytes = get_cub_storage_bytes(NULL, reinterpret_cast<uint32_t*>(occupancy.data_ptr<int>()),
       reinterpret_cast<uint32_t*>(prefix_sum.data_ptr<int>()), curr_cnt);
     temp_storage.resize_({(int64_t)temp_storage_bytes});
 
-    CubDebugExit(cub::DeviceScan::InclusiveSum(
-      (void*)temp_storage.data_ptr<uint8_t>(), temp_storage_bytes, 
-      reinterpret_cast<uint32_t*>(occupancy.data_ptr<int>()), 
+    HIP_CHECK(cub::DeviceScan::InclusiveSum(
+      (void*)temp_storage.data_ptr<uint8_t>(), temp_storage_bytes,
+      reinterpret_cast<uint32_t*>(occupancy.data_ptr<int>()),
       reinterpret_cast<uint32_t*>(prefix_sum.data_ptr<int>()), curr_cnt));
 
-    hipMemcpy(&next_cnt, reinterpret_cast<uint32_t*>(prefix_sum.data_ptr<int>()) + curr_cnt - 1, 
+    hipMemcpy(&next_cnt, reinterpret_cast<uint32_t*>(prefix_sum.data_ptr<int>()) + curr_cnt - 1,
                sizeof(uint32_t), hipMemcpyDeviceToHost);
 
     if (next_cnt == 0) {
@@ -643,21 +644,21 @@ std::vector<at::Tensor> gs_to_spc_cuda_impl(
     // Subdivide if more levels remain, repeat
     if (l < target_level) {
       subdivide_cuda_kernel<<<(curr_cnt + NUM_THREADS - 1) / NUM_THREADS, NUM_THREADS>>>(
-        curr_cnt, 
-        reinterpret_cast<uint64_t*>(morton_codes[curr_buf].data_ptr<int64_t>()), 
-        reinterpret_cast<uint64_t*>(gaus_id[curr_buf].data_ptr<int64_t>()), 
-        reinterpret_cast<uint64_t*>(morton_codes[(curr_buf+1)%2].data_ptr<int64_t>()), 
-        reinterpret_cast<uint64_t*>(gaus_id[(curr_buf+1)%2].data_ptr<int64_t>()), 
-        reinterpret_cast<uint32_t*>(occupancy.data_ptr<int>()), 
+        curr_cnt,
+        reinterpret_cast<uint64_t*>(morton_codes[curr_buf].data_ptr<int64_t>()),
+        reinterpret_cast<uint64_t*>(gaus_id[curr_buf].data_ptr<int64_t>()),
+        reinterpret_cast<uint64_t*>(morton_codes[(curr_buf+1)%2].data_ptr<int64_t>()),
+        reinterpret_cast<uint64_t*>(gaus_id[(curr_buf+1)%2].data_ptr<int64_t>()),
+        reinterpret_cast<uint32_t*>(occupancy.data_ptr<int>()),
         reinterpret_cast<uint32_t*>(prefix_sum.data_ptr<int>()));
     } else {
       compactify_cuda_kernel<<<(curr_cnt + NUM_THREADS - 1) / NUM_THREADS, NUM_THREADS>>>(
-        curr_cnt, 
-        reinterpret_cast<uint64_t*>(morton_codes[curr_buf].data_ptr<int64_t>()), 
-        reinterpret_cast<uint64_t*>(gaus_id[curr_buf].data_ptr<int64_t>()), 
-        reinterpret_cast<uint64_t*>(morton_codes[(curr_buf+1)%2].data_ptr<int64_t>()), 
-        reinterpret_cast<uint64_t*>(gaus_id[(curr_buf+1)%2].data_ptr<int64_t>()), 
-        reinterpret_cast<uint32_t*>(occupancy.data_ptr<int>()), 
+        curr_cnt,
+        reinterpret_cast<uint64_t*>(morton_codes[curr_buf].data_ptr<int64_t>()),
+        reinterpret_cast<uint64_t*>(gaus_id[curr_buf].data_ptr<int64_t>()),
+        reinterpret_cast<uint64_t*>(morton_codes[(curr_buf+1)%2].data_ptr<int64_t>()),
+        reinterpret_cast<uint64_t*>(gaus_id[(curr_buf+1)%2].data_ptr<int64_t>()),
+        reinterpret_cast<uint32_t*>(occupancy.data_ptr<int>()),
         reinterpret_cast<uint32_t*>(prefix_sum.data_ptr<int>()));
     }
 
@@ -671,64 +672,64 @@ std::vector<at::Tensor> gs_to_spc_cuda_impl(
 
   // set up memory for DeviceScan calls
   temp_storage_bytes = get_cub_storage_bytes_sort_pairs(
-    NULL, 
-    reinterpret_cast<uint64_t*>(morton_codes[curr_buf].data_ptr<int64_t>()), 
-    reinterpret_cast<uint64_t*>(morton_codes[(curr_buf+1)%2].data_ptr<int64_t>()), 
-    reinterpret_cast<uint64_t*>(gaus_id[curr_buf].data_ptr<int64_t>()), 
+    NULL,
+    reinterpret_cast<uint64_t*>(morton_codes[curr_buf].data_ptr<int64_t>()),
+    reinterpret_cast<uint64_t*>(morton_codes[(curr_buf+1)%2].data_ptr<int64_t>()),
+    reinterpret_cast<uint64_t*>(gaus_id[curr_buf].data_ptr<int64_t>()),
     reinterpret_cast<uint64_t*>(gaus_id[(curr_buf+1)%2].data_ptr<int64_t>()), curr_cnt);
   temp_storage.resize_({(int64_t)temp_storage_bytes});
 
-  CubDebugExit(cub::DeviceRadixSort::SortPairs(
-    (void*)temp_storage.data_ptr<uint8_t>(), 
-    temp_storage_bytes, 
-    reinterpret_cast<uint64_t*>(morton_codes[curr_buf].data_ptr<int64_t>()), 
-    reinterpret_cast<uint64_t*>(morton_codes[(curr_buf+1)%2].data_ptr<int64_t>()), 
-    reinterpret_cast<uint64_t*>(gaus_id[curr_buf].data_ptr<int64_t>()), 
+  HIP_CHECK(cub::DeviceRadixSort::SortPairs(
+    (void*)temp_storage.data_ptr<uint8_t>(),
+    temp_storage_bytes,
+    reinterpret_cast<uint64_t*>(morton_codes[curr_buf].data_ptr<int64_t>()),
+    reinterpret_cast<uint64_t*>(morton_codes[(curr_buf+1)%2].data_ptr<int64_t>()),
+    reinterpret_cast<uint64_t*>(gaus_id[curr_buf].data_ptr<int64_t>()),
     reinterpret_cast<uint64_t*>(gaus_id[(curr_buf+1)%2].data_ptr<int64_t>()), curr_cnt));
 
   occupancy.resize_({curr_cnt});
   prefix_sum.resize_({curr_cnt});
 
-  // Mark boundaries of unique  
+  // Mark boundaries of unique
   d_MarkDuplicates <<<(curr_cnt + NUM_THREADS - 1) / NUM_THREADS, NUM_THREADS>>> (
-    curr_cnt, 
-    reinterpret_cast<uint64_t*>(morton_codes[(curr_buf+1)%2].data_ptr<int64_t>()), 
+    curr_cnt,
+    reinterpret_cast<uint64_t*>(morton_codes[(curr_buf+1)%2].data_ptr<int64_t>()),
     reinterpret_cast<uint32_t*>(occupancy.data_ptr<int>()));
 
   // set up memory for DeviceScan calls
   temp_storage_bytes = get_cub_storage_bytes(
-    NULL, 
-    reinterpret_cast<uint32_t*>(occupancy.data_ptr<int>()), 
+    NULL,
+    reinterpret_cast<uint32_t*>(occupancy.data_ptr<int>()),
     reinterpret_cast<uint32_t*>(prefix_sum.data_ptr<int>()), curr_cnt+1);
   temp_storage.resize_({(int64_t)temp_storage_bytes});
 
   uint32_t psize;
   cub::DeviceScan::InclusiveSum(
-    (void*)temp_storage.data_ptr<uint8_t>(), 
-    temp_storage_bytes, 
-    reinterpret_cast<uint32_t*>(occupancy.data_ptr<int>()), 
+    (void*)temp_storage.data_ptr<uint8_t>(),
+    temp_storage_bytes,
+    reinterpret_cast<uint32_t*>(occupancy.data_ptr<int>()),
     reinterpret_cast<uint32_t*>(prefix_sum.data_ptr<int>()), curr_cnt);
-  CubDebugExit(hipMemcpy(&psize, reinterpret_cast<uint32_t*>(prefix_sum.data_ptr<int>()) + curr_cnt - 1, 
+  HIP_CHECK(hipMemcpy(&psize, reinterpret_cast<uint32_t*>(prefix_sum.data_ptr<int>()) + curr_cnt - 1,
                sizeof(uint32_t), hipMemcpyDeviceToHost));
 
   // re-allocate local GPU storage
   morton_codes[curr_buf].resize_({psize});
 
   d_Compactify <<<(curr_cnt + NUM_THREADS - 1) / NUM_THREADS, NUM_THREADS>>> (
-    curr_cnt, 
-    reinterpret_cast<uint64_t*>(morton_codes[(curr_buf+1)%2].data_ptr<int64_t>()), 
-    reinterpret_cast<uint64_t*>(morton_codes[curr_buf].data_ptr<int64_t>()), 
-    reinterpret_cast<uint32_t*>(occupancy.data_ptr<int>()), 
+    curr_cnt,
+    reinterpret_cast<uint64_t*>(morton_codes[(curr_buf+1)%2].data_ptr<int64_t>()),
+    reinterpret_cast<uint64_t*>(morton_codes[curr_buf].data_ptr<int64_t>()),
+    reinterpret_cast<uint32_t*>(occupancy.data_ptr<int>()),
     reinterpret_cast<uint32_t*>(prefix_sum.data_ptr<int>()));
 
   at::Tensor merged_opacities = at::zeros({psize}, means3D.options().dtype(at::kFloat));
 
   MergeOpacities_kernel <<<(curr_cnt + NUM_THREADS - 1) / NUM_THREADS, NUM_THREADS>>> (
-    curr_cnt, 
-    reinterpret_cast<uint64_t*>(morton_codes[(curr_buf+1)%2].data_ptr<int64_t>()), 
+    curr_cnt,
+    reinterpret_cast<uint64_t*>(morton_codes[(curr_buf+1)%2].data_ptr<int64_t>()),
     reinterpret_cast<uint64_t*>(gaus_id[(curr_buf+1)%2].data_ptr<int64_t>()),
-    reinterpret_cast<uint32_t*>(prefix_sum.data_ptr<int>()), 
-    reinterpret_cast<float3*>(means3D.data_ptr<float>()), 
+    reinterpret_cast<uint32_t*>(prefix_sum.data_ptr<int>()),
+    reinterpret_cast<float3*>(means3D.data_ptr<float>()),
     Cov3DInvs.data_ptr<float>(),
     opacities.data_ptr<float>(),
     merged_opacities.data_ptr<float>(),

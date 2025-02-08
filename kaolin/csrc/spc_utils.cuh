@@ -18,9 +18,10 @@
 
 #include <cub/device/device_scan.cuh>
 #include "spc_math.h"
+#include "utils.h"
 
 namespace kaolin {
-    
+
 /////////////////////////////////////////////
 /// Device Code
 /////////////////////////////////////////////
@@ -71,12 +72,12 @@ static inline __device__ void identify_multiscale(
     int maxval = (0x1 << level) - 1; // seems you could do this better using Morton codes
     if (k.x < 0 || k.y < 0 || k.z < 0 || k.x > maxval || k.y > maxval || k.z > maxval) {
         for (int i=0; i <= level; ++i) {
-            pidx[i] = -1; 
+            pidx[i] = -1;
         }
         return;
-    } 
+    }
     pidx[0] = 0;
-        
+
     int ord = 0;
     for (uint l = 0; l < level; l++)
     {
@@ -94,7 +95,7 @@ static inline __device__ void identify_multiscale(
         } else {
             // Miss, populate with -1
             for (int j=l; j < level; ++j) {
-                pidx[j+1] = -1; 
+                pidx[j+1] = -1;
             }
             return;
         }
@@ -157,7 +158,7 @@ static inline __device__ int32_t identify(
 /////////////////////////////////////////////
 
 static __global__ void points_to_morton_cuda_kernel(
-    const point_data* points,   
+    const point_data* points,
     morton_code* morton_codes,
     const int64_t num_points
 ){
@@ -172,7 +173,7 @@ static __global__ void points_to_morton_cuda_kernel(
 
 static __global__ void morton_to_points_cuda_kernel(
     const morton_code* morton_codes,
-    point_data* points,   
+    point_data* points,
     const int64_t num_points
 ){
     int64_t idx = blockIdx.x*blockDim.x + threadIdx.x;
@@ -212,13 +213,13 @@ static __global__ void nodes_to_morton_cuda_kernel(
 
 // Gets storage bytes for CUB
 static uint64_t get_cub_storage_bytes(
-    void* temp_storage, 
-    uint* info, 
+    void* temp_storage,
+    uint* info,
     uint* prefix_sum,
     uint  max_total_points) {
-    
+
   uint64_t temp_storage_bytes = 0;
-  CubDebugExit(cub::DeviceScan::InclusiveSum(
+  HIP_CHECK(cub::DeviceScan::InclusiveSum(
       temp_storage, temp_storage_bytes, info,
       prefix_sum, max_total_points));
   return temp_storage_bytes;

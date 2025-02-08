@@ -28,6 +28,7 @@
 #include <ATen/cuda/CUDAContext.h>
 #include "../../spc_math.h"
 #include "../../spc_utils.cuh"
+#include "../../utils.h"
 
 namespace kaolin {
 
@@ -37,7 +38,7 @@ using namespace std;
 uint64_t GetTempSize(void* d_temp_storage, uint* d_M0, uint* d_M1, uint max_total_points)
 {
     uint64_t    temp_storage_bytes = 0;
-    CubDebugExit(DeviceScan::InclusiveSum(d_temp_storage, temp_storage_bytes, d_M0, d_M1, max_total_points));
+    HIP_CHECK(DeviceScan::InclusiveSum(d_temp_storage, temp_storage_bytes, d_M0, d_M1, max_total_points));
     return temp_storage_bytes;
 }
 
@@ -48,7 +49,7 @@ at::Tensor inclusive_sum_cuda_x(at::Tensor Inputs)
 
   at::Tensor Outputs = at::zeros_like(Inputs);
 
-  uint32_t* inputs = reinterpret_cast<uint32_t*>(Inputs.data_ptr<int>()); 
+  uint32_t* inputs = reinterpret_cast<uint32_t*>(Inputs.data_ptr<int>());
   uint32_t* outputs = reinterpret_cast<uint32_t*>(Outputs.data_ptr<int>());
 
   // set up memory for DeviceScan and DeviceRadixSort calls
@@ -59,7 +60,7 @@ at::Tensor inclusive_sum_cuda_x(at::Tensor Inputs)
   d_temp_storage = (void*)temp_storage.data_ptr<uchar>();
 
   DeviceScan::InclusiveSum(d_temp_storage, temp_storage_bytes, inputs, outputs, num);
-  CubDebugExit(cudaGetLastError());
+  HIP_CHECK(cudaGetLastError());
 
   return Outputs;
 }
@@ -67,9 +68,9 @@ at::Tensor inclusive_sum_cuda_x(at::Tensor Inputs)
 
 
 __global__ void d_TrueToZDepth (
-    const uint32_t num, float* dmap, 
+    const uint32_t num, float* dmap,
     const uint32_t height, const uint32_t width,
-    const float fx, const float fy, const float cx, const float cy, 
+    const float fx, const float fy, const float cx, const float cy,
     float maxdepth)
 {
   uint tidx = blockDim.x * blockIdx.x + threadIdx.x;
@@ -84,13 +85,13 @@ __global__ void d_TrueToZDepth (
 
   float d = dmap[y*width+x];
   float l = rsqrtf(u*u + v*v + 1.0f);
-  
+
   dmap[y*width+x] = d*l;
 }
 
 
 __global__ void d_MinMaxDM (
-    const uint32_t num, float* img, 
+    const uint32_t num, float* img,
     const uint32_t height, const uint32_t width,
     float2* out)
 {
@@ -144,7 +145,7 @@ __global__ void d_MiddleMip2D (
     float z0 = fmin(fmin(d00.x, d10.x), fmin(d01.x, d11.x));
     float z1 = fmax(fmax(d00.y, d10.y), fmax(d01.y, d11.y));
 
-    mipout[tidx] = make_float2(z0, z1);  
+    mipout[tidx] = make_float2(z0, z1);
   }
 }
 
@@ -158,7 +159,7 @@ at::Tensor  build_mip2d_cuda(at::Tensor image, at::Tensor In, int mip_levels, fl
   int h0 = height/s;
   int w0 = width/s;
   int hw = h0*w0;
-  int size = (int)(hw*(pow(4, mip_levels)-1)/3); 
+  int size = (int)(hw*(pow(4, mip_levels)-1)/3);
 
   at::Tensor mipmap = at::empty({ size, 2 }, image.options());
 
@@ -174,17 +175,17 @@ at::Tensor  build_mip2d_cuda(at::Tensor image, at::Tensor In, int mip_levels, fl
     float cx = in[8];
     float cy = in[9];
 
-    d_TrueToZDepth <<< (height*width + 1023)/1024, 1024 >>> 
+    d_TrueToZDepth <<< (height*width + 1023)/1024, 1024 >>>
     ( height*width,
-      img, 
+      img,
       height, width,
       fx, fy, cx, cy,
       maxdepth);
   }
 
-  d_MinMaxDM <<< (height*width + 1023)/1024, 1024 >>> 
+  d_MinMaxDM <<< (height*width + 1023)/1024, 1024 >>>
   ( height*width,
-    img, 
+    img,
     height, width,
     mmmip);
 
@@ -195,10 +196,10 @@ at::Tensor  build_mip2d_cuda(at::Tensor image, at::Tensor In, int mip_levels, fl
     uint64_t offset1 = (uint64_t)(hw*(pow(4, l)-1)/3);
 
     width /= 2;
-    d_MiddleMip2D <<< (num_threads + 1023)/1024, 1024 >>> 
+    d_MiddleMip2D <<< (num_threads + 1023)/1024, 1024 >>>
     (
       num_threads,
-      mip+offset0, 
+      mip+offset0,
       width,
       mip+offset1,
       maxdepth);

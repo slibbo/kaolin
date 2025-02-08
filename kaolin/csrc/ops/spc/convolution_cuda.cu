@@ -54,7 +54,7 @@ uint GetPyramid(uint* Pyramid, int batch, int k, int level, int olevel) {
 uint64_t GetStorageBytesX(void* d_temp_storage, uint* d_Info,
                        uint* d_PrefixSum, uint max_total_points) {
   uint64_t temp_storage_bytes = 0;
-  CubDebugExit(cub::DeviceScan::InclusiveSum(
+  HIP_CHECK(cub::DeviceScan::InclusiveSum(
       d_temp_storage, temp_storage_bytes, d_Info, d_PrefixSum, max_total_points));
   return temp_storage_bytes;
 }
