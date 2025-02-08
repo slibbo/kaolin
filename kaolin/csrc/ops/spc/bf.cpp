@@ -19,6 +19,8 @@
 #include <ATen/ATen.h>
 #ifdef WITH_CUDA
 #include <vector_types.h>
+#include <hip/hip_runtime.h>
+#include <hip/texture_types.h>
 #endif
 
 #include "../../check.h"
