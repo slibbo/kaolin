@@ -17,9 +17,11 @@
 #define CUB_NS_POSTFIX }
 #define CUB_NS_QUALIFIER ::kaolin::cub
 
+
+#include <hip/hip_runtime.h>
 #include <ATen/ATen.h>
 
-#define CUB_STDERR
+#define HIPCUB_STDERR
 #include <cub/device/device_scan.cuh>
 
 #include "../../spc_math.h"
@@ -124,7 +126,7 @@ at::Tensor morton_to_octree_cuda_impl(at::Tensor mortons, uint32_t level)
         d_CommonParent <<<(prev + 1023) / 1024, 1024 >>>(prev, mroot[buf], d_info);
         // Count number of allocated nodes in layer above
         cub::DeviceScan::InclusiveSum(temp_storage_ptr, temp_storage_bytes, d_info, d_psum, prev);
-        cudaMemcpy(&curr, d_psum+prev-1, sizeof(uint), cudaMemcpyDeviceToHost);
+        hipMemcpy(&curr, d_psum+prev-1, sizeof(uint), hipMemcpyDeviceToHost);
         h_pyramid[i-1] = curr;
 
         // allocate tensor GPU memory for octree level
@@ -151,7 +153,7 @@ at::Tensor morton_to_octree_cuda_impl(at::Tensor mortons, uint32_t level)
     // copy level data into contiguous memory
     for (uint l=0; l<level; l++)
     {
-      cudaMemcpy(d_octree, olevel[l], h_pyramid[l], cudaMemcpyDeviceToDevice);
+      hipMemcpy(d_octree, olevel[l], h_pyramid[l], hipMemcpyDeviceToDevice);
       d_octree += h_pyramid[l];
     }
 

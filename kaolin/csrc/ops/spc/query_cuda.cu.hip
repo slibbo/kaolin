@@ -14,6 +14,8 @@
 // limitations under the License.
 
 
+
+#include <hip/hip_runtime.h>
 #include <ATen/ATen.h>
 #include <c10/cuda/CUDAGuard.h>
 

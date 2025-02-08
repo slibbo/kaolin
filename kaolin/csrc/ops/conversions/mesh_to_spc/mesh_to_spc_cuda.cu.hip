@@ -17,13 +17,15 @@
 #define CUB_NS_POSTFIX }
 #define CUB_NS_QUALIFIER ::kaolin::cub
 
+
+#include <hip/hip_runtime.h>
 #include <ATen/ATen.h>
 
-#define CUB_STDERR
+#define HIPCUB_STDERR
 #include <cub/device/device_scan.cuh>
 #include <cub/device/device_radix_sort.cuh>
 
-#include "math_constants.h"
+#include "hip/hip_math_constants.h"
 
 #include "../../spc/spc.h"
 #include "../../../spc_math.h"
@@ -352,8 +354,8 @@ std::vector<at::Tensor> mesh_to_spc_cuda_impl(
       (void*)temp_storage.data_ptr<uint8_t>(), temp_storage_bytes, 
       reinterpret_cast<uint*>(occupancy.data_ptr<int>()), 
       reinterpret_cast<uint*>(prefix_sum.data_ptr<int>()), curr_cnt+1)); //start sum on second element
-    cudaMemcpy(&next_cnt, reinterpret_cast<uint*>(prefix_sum.data_ptr<int>()) + curr_cnt, 
-               sizeof(uint), cudaMemcpyDeviceToHost);
+    hipMemcpy(&next_cnt, reinterpret_cast<uint*>(prefix_sum.data_ptr<int>()) + curr_cnt, 
+               sizeof(uint), hipMemcpyDeviceToHost);
 
     if (next_cnt == 0) {
       at::Tensor octree = at::empty({0}, face_vertices.options().dtype(at::kByte));
@@ -418,7 +420,7 @@ std::vector<at::Tensor> mesh_to_spc_cuda_impl(
   prefix_sum = at::empty({curr_cnt+1}, face_vertices.options().dtype(at::kInt));
 
   // set first element to zero
-  CubDebugExit(cudaMemcpy(reinterpret_cast<uint*>(prefix_sum.data_ptr<int>()), &buffer, sizeof(uint), cudaMemcpyHostToDevice));
+  CubDebugExit(hipMemcpy(reinterpret_cast<uint*>(prefix_sum.data_ptr<int>()), &buffer, sizeof(uint), hipMemcpyHostToDevice));
 
   // Mark boundaries of unique  
   d_MarkDuplicates <<<(curr_cnt + 63) / 64, 64 >>> (
@@ -439,7 +441,7 @@ std::vector<at::Tensor> mesh_to_spc_cuda_impl(
     temp_storage_bytes, 
     reinterpret_cast<uint*>(occupancy.data_ptr<int>()), 
     reinterpret_cast<uint*>(prefix_sum.data_ptr<int>()), curr_cnt+1);
-  CubDebugExit(cudaMemcpy(&psize, reinterpret_cast<uint*>(prefix_sum.data_ptr<int>()) + curr_cnt, sizeof(uint), cudaMemcpyDeviceToHost));
+  CubDebugExit(hipMemcpy(&psize, reinterpret_cast<uint*>(prefix_sum.data_ptr<int>()) + curr_cnt, sizeof(uint), hipMemcpyDeviceToHost));
 
   d_Compactify <<<(curr_cnt + 63) / 64, 64 >>> (
     curr_cnt, 

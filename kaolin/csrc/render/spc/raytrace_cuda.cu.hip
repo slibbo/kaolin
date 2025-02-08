@@ -17,6 +17,8 @@
 #define CUB_NS_POSTFIX }
 #define CUB_NS_QUALIFIER ::kaolin::cub
 
+
+#include <hip/hip_runtime.h>
 #include <stdio.h>
 #include <ATen/ATen.h>
 #include <c10/cuda/CUDAGuard.h>
@@ -28,7 +30,7 @@
 // TODO(ttakikawa): newer versions of PyTorch will migrate to <ATen/cuda/Atomics.cuh>. 
 // How do we manage these dependencies?
 
-#define CUB_STDERR
+#define HIPCUB_STDERR
 #include <cub/device/device_scan.cuh>
 
 #include "../../spc_math.h"
@@ -545,7 +547,7 @@ std::vector<at::Tensor> raytrace_cuda_impl(
     uint*  prefix_sum_ptr = reinterpret_cast<uint*>(prefix_sum.data_ptr<int>());
 
     // set first element to zero
-    CubDebugExit(cudaMemcpy(prefix_sum_ptr, &buffer, sizeof(uint), cudaMemcpyHostToDevice));
+    CubDebugExit(hipMemcpy(prefix_sum_ptr, &buffer, sizeof(uint), hipMemcpyHostToDevice));
 
     // set up memory for DeviceScan calls
     void* temp_storage_ptr = NULL;
@@ -557,7 +559,7 @@ std::vector<at::Tensor> raytrace_cuda_impl(
     CubDebugExit(cub::DeviceScan::InclusiveSum(
         temp_storage_ptr, temp_storage_bytes, info_ptr,
         prefix_sum_ptr + 1, num)); //start sum on second element
-    cudaMemcpy(&cnt, prefix_sum_ptr + num, sizeof(uint), cudaMemcpyDeviceToHost);   
+    hipMemcpy(&cnt, prefix_sum_ptr + num, sizeof(uint), hipMemcpyDeviceToHost);   
 
     // allocate local GPU storage
     nuggets1 = at::empty({cnt, 2}, octree.options().dtype(at::kInt));
@@ -672,7 +674,7 @@ int sum_reduce_cuda_impl(
   AT_DISPATCH_FLOATING_TYPES_AND_HALF(feats_in.scalar_type(), "sum_reduce_cuda", ([&] {
       const at::cuda::OptionalCUDAGuard device_guard(at::device_of(feats_out));
       auto stream = at::cuda::getCurrentCUDAStream();
-      cudaMemcpyAsync(&cnt, inclusive_sum_ptr + num_feats - 1, sizeof(int), cudaMemcpyDeviceToHost, stream);
+      hipMemcpyAsync(&cnt, inclusive_sum_ptr + num_feats - 1, sizeof(int), hipMemcpyDeviceToHost, stream);
       sum_reduce_cuda_kernel<scalar_t><<<(num_feats+num_threads-1)/num_threads, num_threads, 0, stream>>>(
           num_feats, feat_dim, 
           feats_in.data_ptr<scalar_t>(), 
@@ -885,7 +887,7 @@ uint generate_shadow_rays_cuda_impl(
       num, ray_o, ray_d, dst, plane, info);
   CubDebugExit(cub::DeviceScan::ExclusiveSum(
       temp_storage_ptr, temp_storage_bytes, info, prefix_sum, num));
-  cudaMemcpy(&cnt, prefix_sum + num - 1, sizeof(uint), cudaMemcpyDeviceToHost);
+  hipMemcpy(&cnt, prefix_sum + num - 1, sizeof(uint), hipMemcpyDeviceToHost);
   compactify_shadow_rays_cuda_kernel<<<(num + RT_NUM_THREADS - 1) / RT_NUM_THREADS, RT_NUM_THREADS>>>(
       num, dst, src, map, info, prefix_sum);
   set_shadow_rays_cuda_kernel<<<(cnt + RT_NUM_THREADS - 1) / RT_NUM_THREADS, RT_NUM_THREADS>>>(cnt, src, dst, light);

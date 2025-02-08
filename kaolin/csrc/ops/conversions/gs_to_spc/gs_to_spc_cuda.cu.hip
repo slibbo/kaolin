@@ -17,14 +17,16 @@
 #define CUB_NS_POSTFIX }
 #define CUB_NS_QUALIFIER ::kaolin::cub
 
+
+#include <hip/hip_runtime.h>
 #include <ATen/ATen.h>
 
-#define CUB_STDERR
+#define HIPCUB_STDERR
 #include <c10/cuda/CUDAGuard.h>
 #include <cub/device/device_scan.cuh>
 #include <cub/device/device_radix_sort.cuh>
 
-#include <math_constants.h>
+#include <hip/hip_math_constants.h>
 
 #include "../../../spc_math.h"
 #include "../../../spc_utils.cuh"
@@ -624,8 +626,8 @@ std::vector<at::Tensor> gs_to_spc_cuda_impl(
       reinterpret_cast<uint32_t*>(occupancy.data_ptr<int>()), 
       reinterpret_cast<uint32_t*>(prefix_sum.data_ptr<int>()), curr_cnt));
 
-    cudaMemcpy(&next_cnt, reinterpret_cast<uint32_t*>(prefix_sum.data_ptr<int>()) + curr_cnt - 1, 
-               sizeof(uint32_t), cudaMemcpyDeviceToHost);
+    hipMemcpy(&next_cnt, reinterpret_cast<uint32_t*>(prefix_sum.data_ptr<int>()) + curr_cnt - 1, 
+               sizeof(uint32_t), hipMemcpyDeviceToHost);
 
     if (next_cnt == 0) {
       at::Tensor mcodes = at::empty({0}, means3D.options().dtype(at::kLong));
@@ -706,8 +708,8 @@ std::vector<at::Tensor> gs_to_spc_cuda_impl(
     temp_storage_bytes, 
     reinterpret_cast<uint32_t*>(occupancy.data_ptr<int>()), 
     reinterpret_cast<uint32_t*>(prefix_sum.data_ptr<int>()), curr_cnt);
-  CubDebugExit(cudaMemcpy(&psize, reinterpret_cast<uint32_t*>(prefix_sum.data_ptr<int>()) + curr_cnt - 1, 
-               sizeof(uint32_t), cudaMemcpyDeviceToHost));
+  CubDebugExit(hipMemcpy(&psize, reinterpret_cast<uint32_t*>(prefix_sum.data_ptr<int>()) + curr_cnt - 1, 
+               sizeof(uint32_t), hipMemcpyDeviceToHost));
 
   // re-allocate local GPU storage
   morton_codes[curr_buf].resize_({psize});

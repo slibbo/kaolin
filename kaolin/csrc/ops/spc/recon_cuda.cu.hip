@@ -17,21 +17,23 @@
 #define CUB_NS_POSTFIX }
 #define CUB_NS_QUALIFIER ::kaolin::cub
 
+
+#include <hip/hip_runtime.h>
 #include <torch/extension.h>
 #include <stdio.h>
-#include <math_constants.h>
+#include <hip/hip_math_constants.h>
 
-#define CUB_STDERR
+#define HIPCUB_STDERR
 #include <cub/device/device_scan.cuh>
 #include <cub/device/device_radix_sort.cuh>
 #include <ATen/ATen.h>
-#include <ATen/cuda/CUDAContext.h>
+#include <ATen/cuda/HIPContext.h>
 #include "../../spc_math.h"
 #include "../../spc_utils.cuh"
 
 namespace kaolin {
 
-using namespace cub;
+using namespace hipcub;
 using namespace std;
 
 uint64_t GetTempSize(void* d_temp_storage, uint* d_M0, uint* d_M1, uint max_total_points)
@@ -59,7 +61,7 @@ at::Tensor inclusive_sum_cuda_x(at::Tensor Inputs)
   d_temp_storage = (void*)temp_storage.data_ptr<uchar>();
 
   DeviceScan::InclusiveSum(d_temp_storage, temp_storage_bytes, inputs, outputs, num);
-  CubDebugExit(cudaGetLastError());
+  CubDebugExit(hipGetLastError());
 
   return Outputs;
 }
@@ -203,7 +205,7 @@ at::Tensor  build_mip2d_cuda(at::Tensor image, at::Tensor In, int mip_levels, fl
       mip+offset1,
       maxdepth);
 
-    AT_CUDA_CHECK(cudaGetLastError());
+    AT_CUDA_CHECK(hipGetLastError());
   }
 
   return mipmap.contiguous();

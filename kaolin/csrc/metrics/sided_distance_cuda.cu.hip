@@ -38,10 +38,12 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE 
 // SOFTWARE.
 
+
+#include <hip/hip_runtime.h>
 #include <algorithm>
 
 #include <ATen/ATen.h>
-#include <ATen/cuda/CUDAContext.h>
+#include <ATen/cuda/HIPContext.h>
 #include <c10/cuda/CUDAGuard.h>
 #include <ATen/cuda/Atomic.cuh>
 
@@ -264,7 +266,7 @@ void sided_distance_forward_cuda_impl(
         p2.data_ptr<scalar_t>(),
         dist.data_ptr<scalar_t>(),
         idx.data_ptr<int64_t>());
-    AT_CUDA_CHECK(cudaGetLastError());
+    AT_CUDA_CHECK(hipGetLastError());
   });
 }
 
@@ -294,7 +296,7 @@ void sided_distance_backward_cuda_impl(
         idx.data_ptr<int64_t>(),
         grad_input1.data_ptr<scalar_t>(),
         grad_input2.data_ptr<scalar_t>());
-    AT_CUDA_CHECK(cudaGetLastError());
+    AT_CUDA_CHECK(hipGetLastError());
   });
 }
 

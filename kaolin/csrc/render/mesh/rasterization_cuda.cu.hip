@@ -13,8 +13,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+
+#include <hip/hip_runtime.h>
 #include <ATen/ATen.h>
-#include <ATen/cuda/CUDAContext.h>
+#include <ATen/cuda/HIPContext.h>
 #include <ATen/cuda/Atomic.cuh>
 #include <c10/cuda/CUDAGuard.h>
 
@@ -231,7 +233,7 @@ void packed_rasterize_forward_cuda_impl(
           interpolated_features.data_ptr<scalar_t>(),
           batch_size, height, width, num_faces, num_features,
 	  multiplier, eps);
-      AT_CUDA_CHECK(cudaGetLastError());
+      AT_CUDA_CHECK(hipGetLastError());
     });
 }
 
@@ -437,7 +439,7 @@ void rasterize_backward_cuda_impl(
           grad_face_vertices_image.data_ptr<scalar_t>(),
           grad_face_features.data_ptr<scalar_t>(),
           batch_size, height, width, num_faces, feat_dim, eps);
-      AT_CUDA_CHECK(cudaGetLastError());
+      AT_CUDA_CHECK(hipGetLastError());
     }));
 }
 

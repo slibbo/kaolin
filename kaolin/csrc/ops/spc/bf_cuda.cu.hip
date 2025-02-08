@@ -17,24 +17,26 @@
 #define CUB_NS_POSTFIX }
 #define CUB_NS_QUALIFIER ::kaolin::cub
 
+
+#include <hip/hip_runtime.h>
 #include <torch/extension.h>
 #include <stdio.h>
 
-#include <math_constants.h>
+#include <hip/hip_math_constants.h>
 
-#define CUB_STDERR
+#define HIPCUB_STDERR
 #include <cub/device/device_scan.cuh>
 #include <cub/device/device_radix_sort.cuh>
 
 #include <ATen/ATen.h>
-#include <ATen/cuda/CUDAContext.h>
+#include <ATen/cuda/HIPContext.h>
 
 #include "../../spc_math.h"
 #include "../../spc_utils.cuh"
 
 namespace kaolin {
 
-using namespace cub;
+using namespace hipcub;
 using namespace std;
 
 #define NEAR_CLIPPING 0.15
@@ -43,7 +45,7 @@ using namespace std;
 #define TWOFIFTYFIVE_OVER_NINTYSIX 2.65625f
 
 // Bayesian Fusion profile curve using quadratic B-spline noise model
-__device__ inline float BQ(cudaTextureObject_t ProfileCurve, float x)
+__device__ inline float BQ(hipTextureObject_t ProfileCurve, float x)
 {
 	if (x <= -3.0f)
 	{
@@ -69,7 +71,7 @@ __device__ inline float BQ(cudaTextureObject_t ProfileCurve, float x)
 }
 
 // Derivative of Bayesian Fusion profile curve using quadratic B-spline noise model
-__device__ inline float DBQ(cudaTextureObject_t ProfileCurve, float x)
+__device__ inline float DBQ(hipTextureObject_t ProfileCurve, float x)
 {
 	if (x <= -3.0f)
 	{
@@ -122,7 +124,7 @@ void compactify_nodes_cuda(uint32_t num_nodes, uint32_t* d_insum, uint8_t* d_occ
 
 	d_CompacifyNodes <<<(num_nodes + 1023) / 1024, 1024 >>> (num_nodes, d_insum, d_occ_ptr, d_emp_ptr, d_octree, d_empty);
 
-  AT_CUDA_CHECK(cudaGetLastError());
+  AT_CUDA_CHECK(hipGetLastError());
 
 }
 
@@ -239,7 +241,7 @@ void oracleB_cuda(uint32_t num,
 
 	  d_OracleB <<<(num + 1023) / 1024, 1024 >>> (num, points, T, sigma, mip, depth_height, depth_width, mip_levels, hw, occ, estate);
 
-    AT_CUDA_CHECK(cudaGetLastError());
+    AT_CUDA_CHECK(hipGetLastError());
 }
 
 
@@ -255,7 +257,7 @@ __global__ void d_OracleBFinal(
   uint32_t* __restrict__ occupied, 
   uint32_t* __restrict__ state, 
   float* __restrict__ out_probs,
-  const cudaTextureObject_t		ProfileCurve,
+  const hipTextureObject_t		ProfileCurve,
   const float scale,
   const int32_t num_levels,
   const int32_t hw)
@@ -334,7 +336,7 @@ void oracleB_final_cuda(
   uint32_t* occ, 
   uint32_t* estate, 
   float* out_probs,
-  cudaTextureObject_t		ProfileCurve,
+  hipTextureObject_t		ProfileCurve,
   float scale,
   int32_t mip_levels,
   int32_t hw)
@@ -345,7 +347,7 @@ void oracleB_final_cuda(
     num, points, T, one_over_sigma, dmap, mipmap, depth_height, depth_width, 
     occ, estate, out_probs, ProfileCurve, scale, mip_levels, hw);
 
-  AT_CUDA_CHECK(cudaGetLastError());
+  AT_CUDA_CHECK(hipGetLastError());
 }
 
 
@@ -404,7 +406,7 @@ void process_final_voxels_cuda(uint32_t num_nodes, uint32_t* state, uint32_t* nv
 
 	d_ProcessFinalVoxels <<<(num_nodes + 1023) / 1024, 1024 >>> (num_nodes, state, nvsum, occup, prev_state, octree, empty);
 
-  AT_CUDA_CHECK(cudaGetLastError());
+  AT_CUDA_CHECK(hipGetLastError());
 }
 
 
@@ -499,7 +501,7 @@ void colorsB_final_cuda(
     out_colors, 
     out_normals);
 
-  AT_CUDA_CHECK(cudaGetLastError());
+  AT_CUDA_CHECK(hipGetLastError());
 }
 
 
@@ -562,7 +564,7 @@ void merge_empty_cuda(
 
 	d_MergeEmpty <<<(num + 1023) / 1024, 1024 >>> (num, d_points, level, d_octree0, d_octree1, d_empty0, d_empty1, d_exsum0, d_exsum1, occ, estate);
 
-  AT_CUDA_CHECK(cudaGetLastError());
+  AT_CUDA_CHECK(hipGetLastError());
 }
 
 
@@ -676,7 +678,7 @@ void bq_merge_cuda(
                                                 d_probs0, d_probs1, d_color0, d_color1, d_normals0, d_normals1, 
                                                 d_exsum0, d_exsum1, offset0, offset1, occ, estate, d_out_probs, 
                                                 d_out_colors, d_out_normals);
-  AT_CUDA_CHECK(cudaGetLastError());
+  AT_CUDA_CHECK(hipGetLastError());
 }
 
 
@@ -702,7 +704,7 @@ void touch_extract_cuda(uint32_t num, uint32_t* state, uint32_t* nvsum, uint32_t
 
 	d_TouchExtract <<<(num + 1023) / 1024, 1024 >>> (num, state, nvsum, prev_state);
 
-  AT_CUDA_CHECK(cudaGetLastError());
+  AT_CUDA_CHECK(hipGetLastError());
 }
 
 
@@ -781,7 +783,7 @@ void bq_extract_cuda(
 
 	d_BQExtract <<<(num + 1023) / 1024, 1024 >>> (num, d_points, level, d_octree, d_empty, d_probs, d_exsum, offset, occ, estate);
 
-  AT_CUDA_CHECK(cudaGetLastError());
+  AT_CUDA_CHECK(hipGetLastError());
 }
 
 
@@ -839,7 +841,7 @@ void bq_touch_cuda(
 
 	d_BQTouch <<<(num + 1023) / 1024, 1024 >>> (num, d_octree, d_empty, occ, estate);
 
-  AT_CUDA_CHECK(cudaGetLastError());
+  AT_CUDA_CHECK(hipGetLastError());
 }
 
 }  // namespace kaolin

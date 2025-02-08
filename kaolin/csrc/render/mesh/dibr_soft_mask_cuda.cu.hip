@@ -13,8 +13,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+
+#include <hip/hip_runtime.h>
 #include <ATen/ATen.h>
-#include <ATen/cuda/CUDAContext.h>
+#include <ATen/cuda/HIPContext.h>
 #include <c10/cuda/CUDAGuard.h>
 #include <ATen/cuda/Atomic.cuh>
 
@@ -222,7 +224,7 @@ void dibr_soft_mask_forward_cuda_impl(
             soft_mask.data_ptr<scalar_t>(),
             batch_size, height, width, num_faces, knum, sigmainv, multiplier
 	);
-        AT_CUDA_CHECK(cudaGetLastError());
+        AT_CUDA_CHECK(hipGetLastError());
   });
   return;
 }
@@ -395,7 +397,7 @@ void dibr_soft_mask_backward_cuda_impl(
              batch_size, height, width, num_faces,
              knum, sigmainv, multiplier
 	);
-	AT_CUDA_CHECK(cudaGetLastError());
+	AT_CUDA_CHECK(hipGetLastError());
 
   });
   return;

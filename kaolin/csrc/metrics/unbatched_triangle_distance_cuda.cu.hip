@@ -13,10 +13,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+
+#include <hip/hip_runtime.h>
 #include <math.h>
 
 #include <ATen/ATen.h>
-#include <ATen/cuda/CUDAContext.h>
+#include <ATen/cuda/HIPContext.h>
 #include <c10/cuda/CUDAGuard.h>
 #include <ATen/cuda/Atomic.cuh>
 
@@ -438,7 +440,7 @@ void unbatched_triangle_distance_forward_cuda_impl(
         dist.data_ptr<scalar_t>(),
         face_idx.data_ptr<int64_t>(),
         dist_type.data_ptr<int32_t>());
-    AT_CUDA_CHECK(cudaGetLastError());
+    AT_CUDA_CHECK(hipGetLastError());
   });
 }
 
@@ -469,7 +471,7 @@ void unbatched_triangle_distance_backward_cuda_impl(
         face_vertices.size(0),
         grad_points.data_ptr<scalar_t>(),
         grad_face_vertices.data_ptr<scalar_t>());
-    AT_CUDA_CHECK(cudaGetLastError());
+    AT_CUDA_CHECK(hipGetLastError());
   });
 }
 

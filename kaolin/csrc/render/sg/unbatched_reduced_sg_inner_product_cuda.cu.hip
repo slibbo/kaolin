@@ -15,8 +15,10 @@
 
 // Spherical Gaussians fused Inner Product + sum on "others"
 
+
+#include <hip/hip_runtime.h>
 #include <ATen/ATen.h>
-#include <ATen/cuda/CUDAContext.h>
+#include <ATen/cuda/HIPContext.h>
 #include <ATen/cuda/Atomic.cuh>
 #include <c10/cuda/CUDAGuard.h>
 
@@ -491,7 +493,7 @@ void unbatched_reduced_sg_inner_product_forward_cuda_impl(
       num_sg,
       num_other,
       output.data_ptr<float>());
-  AT_CUDA_CHECK(cudaGetLastError());
+  AT_CUDA_CHECK(hipGetLastError());
 }
 
 void unbatched_reduced_sg_inner_product_backward_cuda_impl(
@@ -541,7 +543,7 @@ void unbatched_reduced_sg_inner_product_backward_cuda_impl(
       grad_other_direction_cache.data_ptr<float>(),
       grad_other_sharpness_cache.data_ptr<float>());
 
-  AT_CUDA_CHECK(cudaGetLastError());
+  AT_CUDA_CHECK(hipGetLastError());
   at::sum_out(grad_other_intensity, grad_other_intensity_cache, 0);
   at::sum_out(grad_other_direction, grad_other_direction_cache, 0);
   at::sum_out(grad_other_sharpness, grad_other_sharpness_cache, 0);

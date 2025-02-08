@@ -14,7 +14,7 @@ import subprocess
 import warnings
 
 TORCH_MIN_VER = '1.6.0'
-TORCH_MAX_VER = '2.5.1'
+TORCH_MAX_VER = '2.6.0'
 CYTHON_MIN_VER = '0.29.37'
 IGNORE_TORCH_VER = os.getenv('IGNORE_TORCH_VER') is not None
 
@@ -178,8 +178,8 @@ write_version_file()
 
 def get_requirements():
     requirements = []
-    if sys.version_info >= (3, 10):
-        warnings.warn("usd-core is not compatible with python_version >= 3.10 "
+    if sys.version_info >= (3, 12):
+        warnings.warn("usd-core is not compatible with python_version >= 3.12 "
                       "and won't be installed, please use supported python_version "
                       "to use USD related features")
     with open(os.path.join(cwd, 'tools', 'viz_requirements.txt'), 'r') as f:
@@ -203,13 +203,21 @@ def get_extensions():
     # FORCE_CUDA is for cross-compilation in docker build
     if torch.cuda.is_available() or os.getenv('FORCE_CUDA', '0') == '1':
         with_cuda = True
-        define_macros += [("WITH_CUDA", None), ("THRUST_IGNORE_CUB_VERSION_CHECK", None)]
-        sources += glob.glob('kaolin/csrc/**/*.cu', recursive=True)
+        define_macros += [
+            ("WITH_CUDA", None),
+            ("THRUST_IGNORE_CUB_VERSION_CHECK", None),
+            ("GLOG_USE_GLOG_EXPORT", None),
+            ("C10_CUDA_NO_CMAKE_CONFIGURE_FILE", None)
+        ]
+        sources += glob.glob('kaolin/csrc/**/*.hip', recursive=True)
         extension = CUDAExtension
-        extra_compile_args.update({'nvcc': [
+        extra_compile_args.update({'hipcc': [
+            '-std=c++17',
             '-O3',
             '-DWITH_CUDA',
-            '-DTHRUST_IGNORE_CUB_VERSION_CHECK'
+            '-DTHRUST_IGNORE_CUB_VERSION_CHECK',
+            '-DGLOG_USE_GLOG_EXPORT',
+            '-DC10_CUDA_NO_CMAKE_CONFIGURE_FILE'
         ]})
         include_dirs = get_include_dirs()
     else:
@@ -261,7 +269,11 @@ def get_extensions():
     return extensions + cython_extensions
 
 def get_include_dirs():
-    include_dirs = []
+    include_dirs = [
+        os.path.join(CUDA_HOME, "include"),
+        "/usr/include/torch/csrc/api/include",
+        "/usr/include/python3.11",
+    ]
     if torch.cuda.is_available() or os.getenv('FORCE_CUDA', '0') == '1':
         _, bare_metal_major, _ = get_cuda_bare_metal_version(CUDA_HOME)
         if "CUB_HOME" in os.environ:
@@ -285,7 +297,7 @@ if __name__ == '__main__':
         url=URL,
         long_description=LONG_DESCRIPTION,
         license=LICENSE,
-        python_requires='~=3.7',
+        python_requires='~=3.11',
 
         # Package info
         packages=find_packages(exclude=('docs', 'tests', 'examples')),

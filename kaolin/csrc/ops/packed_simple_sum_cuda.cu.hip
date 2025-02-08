@@ -15,8 +15,8 @@
 #include <ATen/ATen.h>
 #include <ATen/cuda/Atomic.cuh>
 
-#include <cuda.h>
-#include <cuda_runtime.h>
+#include <hip/hip_runtime.h>
+
 
 #include "../utils.h"
 #include "../packed_base.cuh"
@@ -133,7 +133,7 @@ at::Tensor packed_simple_sum_cuda_kernel_launcher(
     auto stream = at::cuda::getCurrentCUDAStream();
     auto output_ptr = output.data_ptr<out_scalar_t>();
     auto input_ptr = packed_tensor.data_ptr<scalar_t>();
-    cudaMemsetAsync(output_ptr, 0, batch_size * sizeof(out_scalar_t), stream);
+    hipMemsetAsync(output_ptr, 0, batch_size * sizeof(out_scalar_t), stream);
     packed_simple_cuda_launcher<BLOCK_SIZE, NB_CHUNK_LIMIT, 256, 1, false, false, unsigned char, 0>(
         input_ptr,
         shape_per_tensor.data_ptr<int64_t>(),

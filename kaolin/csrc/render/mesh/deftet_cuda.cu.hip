@@ -13,8 +13,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+
+#include <hip/hip_runtime.h>
 #include <ATen/ATen.h>
-#include <ATen/cuda/CUDAContext.h>
+#include <ATen/cuda/HIPContext.h>
 #include <ATen/cuda/Atomic.cuh>
 #include <c10/cuda/CUDAGuard.h>
 
@@ -231,7 +233,7 @@ void deftet_sparse_render_forward_cuda_impl(
         w1_arr.data_ptr<scalar_t>(),
         batch_size, num_faces, num_pixels, knum,
 	eps);
-      AT_CUDA_CHECK(cudaGetLastError());
+      AT_CUDA_CHECK(hipGetLastError());
   }));
   return;
 }
@@ -444,7 +446,7 @@ void deftet_sparse_render_backward_cuda_impl(
           grad_face_features.data_ptr<scalar_t>(),
           batch_size, num_faces, num_pixels, knum, feat_dim,
           eps);
-      AT_CUDA_CHECK(cudaGetLastError());
+      AT_CUDA_CHECK(hipGetLastError());
     })
   );
 }

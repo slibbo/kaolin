@@ -42,10 +42,12 @@
 // Use the torch for GPU memory management. Thrust resize gives segfulat during
 // debugging -g #include <torch/extension.h>
 
+
+#include <hip/hip_runtime.h>
 #include "convolution.cuh"
 #include "../../utils.h"
 
-#include <ATen/cuda/CUDAContext.h>
+#include <ATen/cuda/HIPContext.h>
 #include <ATen/cuda/Atomic.cuh>
 
 namespace kaolin {
@@ -233,10 +235,10 @@ namespace minkowski {
 		const Dtype *d_kernel,
 		const pInOutMaps<Itype> &in_maps,
 		const pInOutMaps<Itype> &out_maps,
-		int out_nrows, cublasHandle_t cuhandle,
-		cudaStream_t stream) {
+		int out_nrows, hipblasHandle_t cuhandle,
+		hipStream_t stream) {
 
-		AT_CUDA_CHECK(cudaDeviceSynchronize());
+		AT_CUDA_CHECK(hipDeviceSynchronize());
 
 		int n_active_in_volume, shared_mem_size = -1;
 
@@ -298,22 +300,22 @@ namespace minkowski {
 					break;
 				}
 			}
-			AT_CUDA_CHECK(cudaGetLastError());
+			AT_CUDA_CHECK(hipGetLastError());
 		}
-		AT_CUDA_CHECK(cudaDeviceSynchronize());
+		AT_CUDA_CHECK(hipDeviceSynchronize());
 	}
 
 	template void ConvolutionForwardKernelGPU<float, int32_t>(
 		const float *d_in_feat, int in_nchannel, float *d_out_feat,
 		int out_nchannel, const float *d_kernel, const pInOutMaps<int32_t> &in_map,
-		const pInOutMaps<int32_t> &out_map, int out_nrows, cublasHandle_t cuhandle,
-		cudaStream_t stream);
+		const pInOutMaps<int32_t> &out_map, int out_nrows, hipblasHandle_t cuhandle,
+		hipStream_t stream);
 
 	template void ConvolutionForwardKernelGPU<double, int32_t>(
 		const double *d_in_feat, int in_nchannel, double *d_out_feat,
 		int out_nchannel, const double *d_kernel, const pInOutMaps<int32_t> &in_map,
-		const pInOutMaps<int32_t> &out_map, int out_nrows, cublasHandle_t cuhandle,
-		cudaStream_t stream);
+		const pInOutMaps<int32_t> &out_map, int out_nrows, hipblasHandle_t cuhandle,
+		hipStream_t stream);
 
 	template <typename Dtype, typename Itype>
 	void ConvolutionBackwardKernelGPU(const Dtype *d_in_feat, Dtype *d_grad_in_feat,
@@ -322,10 +324,10 @@ namespace minkowski {
 		Dtype *d_grad_kernel,
 		const pInOutMaps<Itype> &in_maps,
 		const pInOutMaps<Itype> &out_maps,
-		int out_nrows, cublasHandle_t cuhandle,
-		cudaStream_t stream) {
+		int out_nrows, hipblasHandle_t cuhandle,
+		hipStream_t stream) {
 
-		AT_CUDA_CHECK(cudaDeviceSynchronize());
+		AT_CUDA_CHECK(hipDeviceSynchronize());
 
 		int n_active_in_volume, shared_mem_size = -1;
 
@@ -402,24 +404,24 @@ namespace minkowski {
 					break;
 				}
 			}
-			AT_CUDA_CHECK(cudaGetLastError());
+			AT_CUDA_CHECK(hipGetLastError());
 		}
-		AT_CUDA_CHECK(cudaDeviceSynchronize());
+		AT_CUDA_CHECK(hipDeviceSynchronize());
 	}
 
 	template void ConvolutionBackwardKernelGPU<float, int32_t>(
 		const float *d_in_feat, float *d_grad_in_feat, int in_nchannel,
 		const float *d_grad_out_feat, int out_nchannel, const float *d_kernel,
 		float *p_grad_kernel, const pInOutMaps<int32_t> &in_map,
-		const pInOutMaps<int32_t> &out_map, int out_nrows, cublasHandle_t cuhandle,
-		cudaStream_t stream);
+		const pInOutMaps<int32_t> &out_map, int out_nrows, hipblasHandle_t cuhandle,
+		hipStream_t stream);
 
 	template void ConvolutionBackwardKernelGPU<double, int32_t>(
 		const double *d_in_feat, double *d_grad_in_feat, int in_nchannel,
 		const double *d_grad_out_feat, int out_nchannel, const double *d_kernel,
 		double *p_grad_kernel, const pInOutMaps<int32_t> &in_map,
-		const pInOutMaps<int32_t> &out_map, int out_nrows, cublasHandle_t cuhandle,
-		cudaStream_t stream);
+		const pInOutMaps<int32_t> &out_map, int out_nrows, hipblasHandle_t cuhandle,
+		hipStream_t stream);
 
 } // end namespace minkowski
 
