@@ -270,7 +270,7 @@ def get_extensions():
 
 def get_include_dirs():
     include_dirs = [
-        os.path.join(CUDA_HOME, "include"),
+        # os.path.join(CUDA_HOME, "include"),
         "/usr/include/torch/csrc/api/include",
         "/usr/include/python3.11",
     ]

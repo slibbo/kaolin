@@ -18,10 +18,10 @@
 
 #ifdef WITH_CUDA
 
+#include <cmath>
+
 #include <stdint.h>
 #include <vector_types.h>
-#include <vector_functions.h>
-#include <math_constants.h>
 
 #ifndef __CUDACC__
 
@@ -514,8 +514,8 @@ inline __device__ void voxel_extent(point_data V, float4x4 T, float3* minExtent,
 
 	transform_corners(V, T, pos);
 
-	*minExtent = make_float3(CUDART_NORM_HUGE_F, CUDART_NORM_HUGE_F, CUDART_NORM_HUGE_F);
-	*maxExtent = make_float3(-CUDART_NORM_HUGE_F, -CUDART_NORM_HUGE_F, -CUDART_NORM_HUGE_F);
+	*minExtent = make_float3(INFINITY, INFINITY, INFINITY);
+	*maxExtent = make_float3(-INFINITY, -INFINITY, -INFINITY);
 
 	for (uint idx = 0; idx < 8; idx++)
 	{

@@ -16,6 +16,7 @@
 #ifndef KAOLIN_2D_MATH_CUH_
 #define KAOLIN_2D_MATH_CUH_
 
+#include <hip/hip_vector_types.h>
 #include <type_traits>
 
 
