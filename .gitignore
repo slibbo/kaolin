@@ -2,7 +2,7 @@ artifacts
 cuda_*.exe
 miniconda3.exe
 vs_buildtools.exe
-
+*_hip.*
 
 # all folders starting with _ are local
 _*/
