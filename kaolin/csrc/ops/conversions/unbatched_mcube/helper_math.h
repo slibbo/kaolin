@@ -772,10 +772,12 @@ inline __host__ __device__ void operator-=(uint4 &a, uint b)
 // multiply
 ////////////////////////////////////////////////////////////////////////////////
 
+#if 0
 inline __host__ __device__ float2 operator*(float2 a, float2 b)
 {
     return make_float2(a.x * b.x, a.y * b.y);
 }
+#endif
 inline __host__ __device__ void operator*=(float2 &a, float2 b)
 {
     a.x *= b.x;
@@ -1000,11 +1002,12 @@ inline __host__ __device__ void operator*=(uint4 &a, uint b)
 ////////////////////////////////////////////////////////////////////////////////
 // divide
 ////////////////////////////////////////////////////////////////////////////////
-
+#if 0
 inline __host__ __device__ float2 operator/(float2 a, float2 b)
 {
     return make_float2(a.x / b.x, a.y / b.y);
 }
+#endif
 inline __host__ __device__ void operator/=(float2 &a, float2 b)
 {
     a.x /= b.x;

@@ -16,6 +16,7 @@
 #include <ATen/cuda/Atomic.cuh>
 
 #include <hip/hip_runtime.h>
+#include <hip/amd_detail/amd_warp_sync_functions.h>
 
 
 #include "../utils.h"
@@ -59,7 +60,7 @@ __device__ __forceinline__ DType ReduceBlockIntoLanes(DType* x,
 
     #pragma unroll
     for (int i = 16; i >= 1; i >>= 1)
-      final = final + __shfl_down_sync(0xffffffff, final, i);
+      final = final + __shfl_down_sync(0xffffffffffffffff, final, i);
   }
   return final;
 }

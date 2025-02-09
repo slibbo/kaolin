@@ -21,6 +21,7 @@
 #include <ATen/cuda/HIPContext.h>
 #include <ATen/cuda/Atomic.cuh>
 #include <c10/cuda/CUDAGuard.h>
+#include <hip/amd_detail/amd_warp_sync_functions.h>
 
 #include "../../utils.h"
 
@@ -128,9 +129,9 @@ void unbatched_reduced_sg_inner_product_forward_cuda_kernel(
       }
       // Sum reduction across threads of same threadIdx.y
       for (int offset = 16; offset > 0; offset /= 2) {
-        sum_x += __shfl_down_sync(0xfffffff, sum_x, offset);
-        sum_y += __shfl_down_sync(0xfffffff, sum_y, offset);
-        sum_z += __shfl_down_sync(0xfffffff, sum_z, offset);
+        sum_x += __shfl_down_sync(0xffffffffffffffff, sum_x, offset);
+        sum_y += __shfl_down_sync(0xffffffffffffffff, sum_y, offset);
+        sum_z += __shfl_down_sync(0xffffffffffffffff, sum_z, offset);
       }
       // Use shared memory for coalescent store
       __syncthreads();
@@ -174,7 +175,7 @@ void unbatched_reduced_sg_inner_product_backward_cuda_kernel(
   volatile __shared__ float shm[16][17];
   volatile float twopi = 2. * M_PI;
   volatile float zero = 0.;
- 
+
   for (int start_sg_idx = blockDim.x * blockIdx.x;
        start_sg_idx < num_sg;
        start_sg_idx += gridDim.x * blockDim.x) {
@@ -314,9 +315,9 @@ void unbatched_reduced_sg_inner_product_backward_cuda_kernel(
         grad_intensity_prod_z = shm[threadIdx.x][threadIdx.y];
         __syncthreads();
         for (int offset = 8; offset > 0; offset /= 2) {
-          grad_intensity_prod_x += __shfl_down_sync(0xffffffff, grad_intensity_prod_x, offset);
-          grad_intensity_prod_y += __shfl_down_sync(0xffffffff, grad_intensity_prod_y, offset);
-          grad_intensity_prod_z += __shfl_down_sync(0xffffffff, grad_intensity_prod_z, offset);
+          grad_intensity_prod_x += __shfl_down_sync(0xffffffffffffffff, grad_intensity_prod_x, offset);
+          grad_intensity_prod_y += __shfl_down_sync(0xffffffffffffffff, grad_intensity_prod_y, offset);
+          grad_intensity_prod_z += __shfl_down_sync(0xffffffffffffffff, grad_intensity_prod_z, offset);
         }
         __syncthreads();
         if (threadIdx.x == 0) {
@@ -350,9 +351,9 @@ void unbatched_reduced_sg_inner_product_backward_cuda_kernel(
         grad_um_z = shm[threadIdx.x][threadIdx.y];
         __syncthreads();
         for (int offset = 8; offset > 0; offset /= 2) {
-          grad_um_x += __shfl_down_sync(0xffffffff, grad_um_x, offset);
-          grad_um_y += __shfl_down_sync(0xffffffff, grad_um_y, offset);
-          grad_um_z += __shfl_down_sync(0xffffffff, grad_um_z, offset);
+          grad_um_x += __shfl_down_sync(0xffffffffffffffff, grad_um_x, offset);
+          grad_um_y += __shfl_down_sync(0xffffffffffffffff, grad_um_y, offset);
+          grad_um_z += __shfl_down_sync(0xffffffffffffffff, grad_um_z, offset);
         }
         __syncthreads();
         if (threadIdx.y == 0) {
@@ -382,7 +383,7 @@ void unbatched_reduced_sg_inner_product_backward_cuda_kernel(
         grad_subtract = shm[threadIdx.x][threadIdx.y];
         __syncthreads();
         for (int offset = 8; offset > 0; offset /= 2) {
-          grad_subtract += __shfl_down_sync(0xffffffff, grad_subtract, offset);
+          grad_subtract += __shfl_down_sync(0xffffffffffffffff, grad_subtract, offset);
         }
         if (threadIdx.y == 0) {
           shm[threadIdx.x][1] = other_direction_x;
@@ -407,13 +408,13 @@ void unbatched_reduced_sg_inner_product_backward_cuda_kernel(
       }
       __syncthreads();
       for (int offset = 8; offset > 0; offset /= 2) {
-        sum_grad_intensity_x += __shfl_down_sync(0xffffffff, sum_grad_intensity_x, offset);
-        sum_grad_intensity_y += __shfl_down_sync(0xffffffff, sum_grad_intensity_y, offset);
-        sum_grad_intensity_z += __shfl_down_sync(0xffffffff, sum_grad_intensity_z, offset);
-        sum_grad_prod1_x += __shfl_down_sync(0xffffffff, sum_grad_prod1_x, offset);
-        sum_grad_prod1_y += __shfl_down_sync(0xffffffff, sum_grad_prod1_y, offset);
-        sum_grad_prod1_z += __shfl_down_sync(0xffffffff, sum_grad_prod1_z, offset);
-        sum_grad_lm += __shfl_down_sync(0xffffffff, sum_grad_lm, offset);
+        sum_grad_intensity_x += __shfl_down_sync(0xffffffffffffffff, sum_grad_intensity_x, offset);
+        sum_grad_intensity_y += __shfl_down_sync(0xffffffffffffffff, sum_grad_intensity_y, offset);
+        sum_grad_intensity_z += __shfl_down_sync(0xffffffffffffffff, sum_grad_intensity_z, offset);
+        sum_grad_prod1_x += __shfl_down_sync(0xffffffffffffffff, sum_grad_prod1_x, offset);
+        sum_grad_prod1_y += __shfl_down_sync(0xffffffffffffffff, sum_grad_prod1_y, offset);
+        sum_grad_prod1_z += __shfl_down_sync(0xffffffffffffffff, sum_grad_prod1_z, offset);
+        sum_grad_lm += __shfl_down_sync(0xffffffffffffffff, sum_grad_lm, offset);
       }
       __syncthreads();
       if (threadIdx.x == 0) {

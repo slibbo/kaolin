@@ -207,7 +207,8 @@ def get_extensions():
             ("WITH_CUDA", None),
             ("THRUST_IGNORE_CUB_VERSION_CHECK", None),
             ("GLOG_USE_GLOG_EXPORT", None),
-            ("C10_CUDA_NO_CMAKE_CONFIGURE_FILE", None)
+            ("C10_CUDA_NO_CMAKE_CONFIGURE_FILE", None),
+            ("HIP_ENABLE_WARP_SYNC_BUILTINS", None),
         ]
         sources += glob.glob('kaolin/csrc/**/*.hip', recursive=True)
         extension = CUDAExtension
@@ -217,7 +218,8 @@ def get_extensions():
             '-DWITH_CUDA',
             '-DTHRUST_IGNORE_CUB_VERSION_CHECK',
             '-DGLOG_USE_GLOG_EXPORT',
-            '-DC10_CUDA_NO_CMAKE_CONFIGURE_FILE'
+            '-DC10_CUDA_NO_CMAKE_CONFIGURE_FILE',
+            '-DHIP_ENABLE_WARP_SYNC_BUILTINS',
         ]})
         include_dirs = get_include_dirs()
     else:
