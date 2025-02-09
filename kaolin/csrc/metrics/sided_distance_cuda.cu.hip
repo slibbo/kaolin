@@ -89,7 +89,7 @@ __global__ void sided_distance_forward_cuda_kernel(
             scalar_t z2 = buf[k * 3 + 2]- z1;
             scalar_t d = x2 * x2 + y2 * y2 + z2 * z2;
 
-            if (k == 0 || __half2float(d) < __half2float(best)) {
+            if (k == 0 || d < best) {
               best = d;
               best_i = k + k2;
             }
@@ -101,7 +101,7 @@ __global__ void sided_distance_forward_cuda_kernel(
             scalar_t z2 = buf[k * 3 + 5] - z1;
             scalar_t d = x2 * x2 + y2 * y2 + z2 * z2;
 
-            if (__half2float(d) < __half2float(best)){
+            if (d < best){
               best = d;
               best_i = k + k2 + 1;
             }
@@ -113,7 +113,7 @@ __global__ void sided_distance_forward_cuda_kernel(
             scalar_t z2 = buf[k * 3 + 8] - z1;
             scalar_t d = x2 * x2 + y2 * y2 + z2 * z2;
 
-            if (__half2float(d) < __half2float(best)) {
+            if (d < best) {
               best = d;
               best_i = k + k2 + 2;
             }
@@ -125,7 +125,7 @@ __global__ void sided_distance_forward_cuda_kernel(
             scalar_t z2 = buf[k*3 + 11] - z1;
             scalar_t d = x2 * x2 + y2 * y2 + z2 * z2;
 
-            if (__half2float(d) < __half2float(best)) {
+            if (d < best) {
               best = d;
               best_i = k + k2 + 3;
             }
@@ -139,7 +139,7 @@ __global__ void sided_distance_forward_cuda_kernel(
               scalar_t z2 = buf[k * 3 + 2] - z1;
               scalar_t d = x2 * x2 + y2 * y2 + z2 * z2;
 
-              if (k == 0 || __half2float(d) < __half2float(best)) {
+              if (k == 0 || d < best) {
                 best = d;
                 best_i = k + k2;
               }
@@ -151,7 +151,7 @@ __global__ void sided_distance_forward_cuda_kernel(
               scalar_t z2 = buf[k * 3 + 5] - z1;
               scalar_t d = x2 * x2 + y2 * y2 + z2 * z2;
 
-              if (__half2float(d) < __half2float(best)) {
+              if (d < best) {
                 best = d;
                 best_i = k + k2 + 1;
               }
@@ -163,7 +163,7 @@ __global__ void sided_distance_forward_cuda_kernel(
               scalar_t z2 = buf[k * 3 + 8] - z1;
               scalar_t d= x2 * x2 + y2 * y2 + z2 * z2;
 
-              if (__half2float(d) < __half2float(best)) {
+              if (d < best) {
                 best = d;
                 best_i = k + k2 + 2;
               }
@@ -175,7 +175,7 @@ __global__ void sided_distance_forward_cuda_kernel(
               scalar_t z2 = buf[k * 3 + 11] - z1;
               scalar_t d = x2 * x2 + y2 * y2 + z2 * z2;
 
-              if (__half2float(d) < __half2float(best)) {
+              if (d < best) {
                 best = d;
                 best_i = k + k2 + 3;
               }
@@ -188,13 +188,13 @@ __global__ void sided_distance_forward_cuda_kernel(
           scalar_t z2 = buf[k * 3 + 2] - z1;
           scalar_t d = x2 * x2 + y2 * y2 + z2 * z2;
 
-          if (k == 0 || __half2float(d) < __half2float(best)) {
+          if (k == 0 || d < best) {
             best = d;
             best_i = k+k2;
           }
         }
 
-        if (k2 == 0 || __half2float(result[(i * n + j)]) > __half2float(best)) {
+        if (k2 == 0 || result[(i * n + j)] > best) {
           result[(i * n + j)] = best;
           result_i[(i * n + j)] = best_i;
         }

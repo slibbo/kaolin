@@ -843,10 +843,12 @@ inline __host__ __device__ void operator*=(uint2 &a, uint b)
     a.y *= b;
 }
 
+#if 0
 inline __host__ __device__ float3 operator*(float3 a, float3 b)
 {
     return make_float3(a.x * b.x, a.y * b.y, a.z * b.z);
 }
+#endif
 inline __host__ __device__ void operator*=(float3 &a, float3 b)
 {
     a.x *= b.x;
@@ -918,10 +920,12 @@ inline __host__ __device__ void operator*=(uint3 &a, uint b)
     a.z *= b;
 }
 
+#if 0
 inline __host__ __device__ float4 operator*(float4 a, float4 b)
 {
     return make_float4(a.x * b.x, a.y * b.y, a.z * b.z,  a.w * b.w);
 }
+#endif
 inline __host__ __device__ void operator*=(float4 &a, float4 b)
 {
     a.x *= b.x;
@@ -1027,10 +1031,12 @@ inline __host__ __device__ float2 operator/(float b, float2 a)
     return make_float2(b / a.x, b / a.y);
 }
 
+#if 0
 inline __host__ __device__ float3 operator/(float3 a, float3 b)
 {
     return make_float3(a.x / b.x, a.y / b.y, a.z / b.z);
 }
+#endif
 inline __host__ __device__ void operator/=(float3 &a, float3 b)
 {
     a.x /= b.x;
@@ -1047,15 +1053,19 @@ inline __host__ __device__ void operator/=(float3 &a, float b)
     a.y /= b;
     a.z /= b;
 }
+#if 0
 inline __host__ __device__ float3 operator/(float b, float3 a)
 {
     return make_float3(b / a.x, b / a.y, b / a.z);
 }
+#endif
 
+#if 0
 inline __host__ __device__ float4 operator/(float4 a, float4 b)
 {
     return make_float4(a.x / b.x, a.y / b.y, a.z / b.z,  a.w / b.w);
 }
+#endif
 inline __host__ __device__ void operator/=(float4 &a, float4 b)
 {
     a.x /= b.x;

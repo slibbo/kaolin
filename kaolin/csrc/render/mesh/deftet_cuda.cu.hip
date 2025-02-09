@@ -26,7 +26,7 @@
 #define BLOCK_SIZE_Y 32
 #define BLOCK_SIZE 1024
 #define NUM_SHARED_FACES 256
-#define FULL_MASK 0xffffffff
+#define FULL_MASK 0xffffffffffffffff
 
 namespace kaolin {
 
