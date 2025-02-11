@@ -70,7 +70,6 @@ def run_apidoc(_):
             "kaolin/physics/simplicits/network.py",
             "kaolin/physics/simplicits/precomputed.py",
             "kaolin/physics/simplicits/simplicits_scene_forces.py",
-            "kaolin/physics/simplicits/losses_warp.py",
             "kaolin/physics/simplicits/utils.py",
             "kaolin/physics/utils/finite_diff.py",
             "kaolin/physics/utils/force_wrapper.py",

@@ -120,37 +120,6 @@ def test_regression_fox_train(device, dtype):
         i += 1
 
 
-@pytest.mark.parametrize('device', ['cuda'])
-@pytest.mark.parametrize('dtype', [torch.float32])
-def test_regression_fox_train_warp(device, dtype):
-    logging.getLogger('kaolin.physics').setLevel(logging.DEBUG)
-
-    r"Step 1: Load and Setup Object"
-    torch.manual_seed(0)
-    pts, yms, prs, rhos, approx_volume, orig_vertices = load_and_set_box(device, dtype)
-
-    r"Step 2: Create Simplicits Object"
-    torch.manual_seed(0)
-    sim_obj = kal.physics.simplicits.SimplicitsObject(pts, yms, prs, rhos, torch.tensor(
-        [approx_volume], dtype=dtype, device=device), warp_training=True)
-    torch.manual_seed(0)
-    training_vals = sim_obj.train(num_steps=4000)
-    print(training_vals)
-    r"Step 3: Read Reference Train Vals"
-    filename = os.path.dirname(os.path.realpath(__file__)) + \
-        "/regression_test_data/box_training_reference_log_4k_steps.txt"
-    reference_training_val = torch.load(filename)
-
-    i = 0
-    r"Step 4: Asserts Training Match"
-    for tvals in training_vals:
-        le = reference_training_val[i][0]
-        lo = reference_training_val[i][1]
-        assert (abs(le - tvals[0]) < 0.005 * le)
-        assert (abs(lo - tvals[1]) < 0.005 * lo)
-        i += 1
-
-
 # @pytest.mark.parametrize('device', ['cuda'])
 # @pytest.mark.parametrize('dtype', [torch.float])
 # def test_regression_fox_sim(device, dtype):

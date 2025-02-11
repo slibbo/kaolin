@@ -20,9 +20,6 @@ import kaolin.physics.utils as phys_utils
 import kaolin.physics.materials as materials
 import kaolin.physics.utils.optimization as optimization
 from kaolin.physics.simplicits.simplicits_scene_forces import *
-from kaolin.physics.simplicits.losses_warp import compute_losses_warp
-from kaolin.physics.simplicits.losses import compute_losses
-from kaolin.physics.simplicits.losses_warp import compute_losses_warp
 from kaolin.physics.simplicits.losses import compute_losses
 import os
 import torch
@@ -97,18 +94,11 @@ class SimplicitsObject:
 
         self.num_samples = num_samples
         self.training_layers = model_layers
-        if warp_training:
-            self.compute_losses = partial(compute_losses_warp,
-                                          batch_size=training_batch_size,  # TODO: maybe pass into train() below?
-                                          num_handles=self.num_handles,
-                                          appx_vol=norm_appx_vol,
-                                          num_samples=self.num_samples)
-        else:
-            self.compute_losses = partial(compute_losses,
-                                          batch_size=training_batch_size,  # TODO: maybe pass into train() below?
-                                          num_handles=self.num_handles,
-                                          appx_vol=norm_appx_vol,
-                                          num_samples=self.num_samples)
+        self.compute_losses = partial(compute_losses,
+                                        batch_size=training_batch_size,  # TODO: maybe pass into train() below?
+                                        num_handles=self.num_handles,
+                                        appx_vol=norm_appx_vol,
+                                        num_samples=self.num_samples)
 
         self.model = None
         if self.num_handles == 0:
